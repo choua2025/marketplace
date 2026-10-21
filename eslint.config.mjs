@@ -9,10 +9,12 @@ const eslintConfig = defineConfig([
   // Architecture rule (SPEC.md section 5.2): the Drizzle client/schema may
   // only be imported from inside src/server -- UI components, pages, and
   // route handlers must go through the service layer instead of running
-  // queries directly.
+  // queries directly. Tests are exempt: integration tests legitimately
+  // need direct DB access to set up fixtures and verify DB-level behavior
+  // (constraints, triggers) that has no service function to call yet.
   {
     files: ["**/*.{ts,tsx}"],
-    ignores: ["src/server/**"],
+    ignores: ["src/server/**", "tests/**"],
     rules: {
       "no-restricted-imports": [
         "error",

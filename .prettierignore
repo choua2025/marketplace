@@ -4,3 +4,5 @@ pnpm-lock.yaml
 coverage
 playwright-report
 test-results
+# drizzle-kit owns the exact formatting of its own generated SQL/journal
+src/server/db/migrations

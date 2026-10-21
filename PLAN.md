@@ -34,6 +34,24 @@ Docker Compose v2.40.3, Git 2.51.2 — เพียงพอสำหรับ�
 9. **CI:** จะเขียน GitHub Actions workflow (lint/typecheck/test + postgres service) ไว้ใน `.github/workflows/`
    แต่จะไม่สร้าง/เชื่อม GitHub repo จริงให้ จนกว่าผู้ใช้จะขอ
 
+**อัปเดตจาก M0 — MinIO ใช้ไม่ได้แล้ว:** official MinIO Docker image ถูกลบออกจากทุก registry ที่ลองแล้ว
+(repo archived เม.ย. 2026, community edition เหลือแต่ source) ยืนยันด้วยการ `docker pull` จริงจาก Docker Hub,
+quay.io, Bitnami ไม่ได้ทั้งหมด **เปลี่ยนไปใช้ Garage แทนในฐานะ dev-only S3-compatible emulator** (ถามผู้ใช้แล้ว)
+Production ยังใช้ Cloudflare R2/AWS S3 เหมือนเดิมตาม SPEC ไม่กระทบโค้ดแอป กระทบแค่ docker-compose
+
+**เพิ่มจาก M1:**
+
+- **ลบ package `server-only` ออก:** ของจริง throw ไม่มีเงื่อนไขนอก Next bundler ทำให้ CLI script
+  (`db:seed`, `db:reset` ผ่าน tsx) import `src/server/db/client` ไม่ได้ ใช้ ESLint
+  `no-restricted-imports` (ที่ SPEC กำหนดไว้แล้ว) เป็นตัวบังคับหลักเพียงตัวเดียวแทน
+- **`src/server/lib/env.ts` โหลด `.env` เอง** ผ่าน `process.loadEnvFile(".env")` (try/catch เผื่อไม่มีไฟล์)
+  เพราะ Next.js โหลด .env ให้อัตโนมัติ แต่ CLI script ที่รันผ่าน tsx และ Vitest ไม่โหลดให้
+- **Integration test รันกับ Postgres จริงเสมอ** ผ่าน Vitest `globalSetup` ที่ apply migration ให้
+  `changdee_test` อัตโนมัติก่อนรัน test ทั้งหมด (`pnpm test` ต้อง `docker compose up` ก่อนเสมอ)
+- **Better Auth core schema (user/session/account/verification) generate ไว้แล้วใน M1** ผ่าน
+  `npx auth generate` ส่วน plugin เบอร์โทร/OTP และ Google OAuth (ที่จะเพิ่มคอลัมน์ เช่น phoneNumber ใน user)
+  จะ wiring และ regenerate schema อีกครั้งใน M2 ตามที่ SPEC แบ่ง milestone ไว้
+
 ถ้าข้อใดข้างต้นไม่ตรงกับที่ผู้ใช้ต้องการ แจ้งได้ก่อนอนุมัติแผนนี้
 
 ## Milestone Breakdown

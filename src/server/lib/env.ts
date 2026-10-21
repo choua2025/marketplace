@@ -1,4 +1,3 @@
-import "server-only";
 import { z } from "zod";
 
 // Validated once at module load, so the server fails fast on boot instead
@@ -8,11 +7,26 @@ import { z } from "zod";
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   APP_URL: z.url(),
+  // App-role connection (DML only, no DDL -- see SPEC.md section 5.7).
+  // Migrations/seed use DATABASE_URL (owner role) directly, not this file.
+  DATABASE_APP_URL: z.string().min(1),
 });
 
 export type Env = z.infer<typeof envSchema>;
 
 function loadEnv(): Env {
+  try {
+    // Next.js loads .env itself before this module ever runs; this only
+    // matters for CLI scripts (db:seed, db:reset) run directly via tsx.
+    // Never overrides a variable that's already set (see Node docs), so
+    // it's safe to call unconditionally -- including in tests, which set
+    // process.env explicitly before importing this module.
+    process.loadEnvFile(".env");
+  } catch {
+    // No .env file (e.g. production, where real env vars are injected
+    // by the deployment platform) -- fall through to validation below.
+  }
+
   const parsed = envSchema.safeParse(process.env);
 
   if (!parsed.success) {
