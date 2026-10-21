@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const UNDER_TEST = ["NODE_ENV", "APP_URL", "DATABASE_APP_URL"];
+const UNDER_TEST = [
+  "NODE_ENV",
+  "APP_URL",
+  "DATABASE_APP_URL",
+  "BETTER_AUTH_SECRET",
+  "BETTER_AUTH_URL",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
+];
 
 let ORIGINAL_ENV: NodeJS.ProcessEnv;
 
@@ -30,6 +38,8 @@ const VALID = {
   NODE_ENV: "production",
   APP_URL: "https://changdee.example",
   DATABASE_APP_URL: "postgres://changdee_app:secret@localhost:55432/changdee",
+  BETTER_AUTH_SECRET: "dev-secret",
+  BETTER_AUTH_URL: "https://changdee.example",
 };
 
 describe("server/lib/env", () => {
@@ -42,7 +52,8 @@ describe("server/lib/env", () => {
   });
 
   it("defaults NODE_ENV to development when unset", async () => {
-    setEnv({ APP_URL: VALID.APP_URL, DATABASE_APP_URL: VALID.DATABASE_APP_URL });
+    const { NODE_ENV: _omit, ...rest } = VALID;
+    setEnv(rest);
 
     const { env } = await import("@/server/lib/env");
 
@@ -50,7 +61,8 @@ describe("server/lib/env", () => {
   });
 
   it("throws when APP_URL is missing", async () => {
-    setEnv({ NODE_ENV: VALID.NODE_ENV, DATABASE_APP_URL: VALID.DATABASE_APP_URL });
+    const { APP_URL: _omit, ...rest } = VALID;
+    setEnv(rest);
 
     await expect(import("@/server/lib/env")).rejects.toThrow(/APP_URL/);
   });
@@ -68,8 +80,25 @@ describe("server/lib/env", () => {
   });
 
   it("throws when DATABASE_APP_URL is missing", async () => {
-    setEnv({ NODE_ENV: VALID.NODE_ENV, APP_URL: VALID.APP_URL });
+    const { DATABASE_APP_URL: _omit, ...rest } = VALID;
+    setEnv(rest);
 
     await expect(import("@/server/lib/env")).rejects.toThrow(/DATABASE_APP_URL/);
+  });
+
+  it("throws when BETTER_AUTH_SECRET is missing", async () => {
+    const { BETTER_AUTH_SECRET: _omit, ...rest } = VALID;
+    setEnv(rest);
+
+    await expect(import("@/server/lib/env")).rejects.toThrow(/BETTER_AUTH_SECRET/);
+  });
+
+  it("leaves Google sign-in disabled (no error) when its env vars are unset", async () => {
+    setEnv(VALID);
+
+    const { env } = await import("@/server/lib/env");
+
+    expect(env.GOOGLE_CLIENT_ID).toBeUndefined();
+    expect(env.GOOGLE_CLIENT_SECRET).toBeUndefined();
   });
 });

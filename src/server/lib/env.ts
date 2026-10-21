@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+function emptyStringAsUndefined<T extends z.ZodType>(schema: T) {
+  return z.preprocess((value) => (value === "" ? undefined : value), schema);
+}
+
 // Validated once at module load, so the server fails fast on boot instead
 // of surfacing a confusing error deep inside a request handler. Grows
 // milestone by milestone as new server code starts reading new variables --
@@ -10,6 +14,12 @@ const envSchema = z.object({
   // App-role connection (DML only, no DDL -- see SPEC.md section 5.7).
   // Migrations/seed use DATABASE_URL (owner role) directly, not this file.
   DATABASE_APP_URL: z.string().min(1),
+  BETTER_AUTH_SECRET: z.string().min(1),
+  BETTER_AUTH_URL: z.url(),
+  // Optional: Google sign-in is disabled (not an error) until both are set.
+  // .env.example ships these blank, so "" must count as unset too.
+  GOOGLE_CLIENT_ID: emptyStringAsUndefined(z.string().min(1).optional()),
+  GOOGLE_CLIENT_SECRET: emptyStringAsUndefined(z.string().min(1).optional()),
 });
 
 export type Env = z.infer<typeof envSchema>;

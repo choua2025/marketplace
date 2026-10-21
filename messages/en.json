@@ -1,0 +1,20 @@
+{
+  "errors": {
+    "PROVIDER_UNAVAILABLE": "This provider is not available right now.",
+    "CATEGORY_NOT_OFFERED": "This provider doesn't offer that category.",
+    "INVALID_START_TIME": "Start time must be between 1 hour and 90 days from now.",
+    "OUTSIDE_WORKING_HOURS": "The selected time is outside the provider's working hours.",
+    "TOO_MANY_PENDING_BOOKINGS": "You already have the maximum number of pending requests.",
+    "BOOKING_NOT_FOUND": "Booking not found.",
+    "INVALID_TRANSITION": "This booking can't be moved to that status.",
+    "CANCEL_REASON_REQUIRED": "Please provide a reason for cancelling.",
+    "SLOT_TAKEN": "That time slot was just taken.",
+    "CONTACT_LOCKED": "Contact details aren't available yet.",
+    "REVIEW_EXISTS": "This booking has already been reviewed.",
+    "RATE_LIMITED": "You're doing that too often. Please wait a moment.",
+    "FORBIDDEN": "You don't have permission to do that.",
+    "NOT_FOUND": "Not found.",
+    "VALIDATION_ERROR": "The submitted data is invalid.",
+    "UNAUTHORIZED": "Please sign in to continue."
+  }
+}

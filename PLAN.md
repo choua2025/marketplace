@@ -52,6 +52,24 @@ Production ยังใช้ Cloudflare R2/AWS S3 เหมือนเดิ�
   `npx auth generate` ส่วน plugin เบอร์โทร/OTP และ Google OAuth (ที่จะเพิ่มคอลัมน์ เช่น phoneNumber ใน user)
   จะ wiring และ regenerate schema อีกครั้งใน M2 ตามที่ SPEC แบ่ง milestone ไว้
 
+**เพิ่มจาก M2:**
+
+- **หน้าเว็บยังไม่มี `[locale]` segment** (ถามผู้ใช้แล้ว เลือกสร้างแบบไม่มี locale ไปก่อน) SPEC หัวข้อ 15
+  ให้ path เป็น `src/app/[locale]/...` แต่ next-intl จริง ๆ เพิ่งเข้ามา M8 — หน้า login ตอนนี้จึงอยู่ที่
+  `src/app/(auth)/login` ตรง ๆ ไม่มี `/th` หรือ `/en` นำหน้า **M8 ต้องย้ายทุก page เข้า `[locale]`**
+  และอัปเดต Link/redirect ทั้งหมดให้มี locale prefix ตอนเพิ่ม next-intl
+- **Role selection ตอนสมัครใช้งานได้เต็มที่เฉพาะ flow เบอร์โทร/OTP:** กด "ช่าง/ฟรีแลนซ์" แล้วระบบจะเรียก
+  `becomeProvider()` ให้อัตโนมัติทันทีหลัง verify OTP สำเร็จ ส่วน Google/dev email สมัครใหม่จะได้ role
+  `customer` เสมอก่อน (ตาม Better Auth hook) แล้วไปกด "เปลี่ยนเป็นช่าง" เองทีหลังได้ (หน้านี้จะมีใน M3)
+  เหตุผล: role ที่เลือกไว้ในฟอร์มจะหายไปตอน redirect ไป Google OAuth แล้วกลับมา ถ้าจะรองรับ Google ด้วย
+  ต้องส่ง role ผ่าน query param ของ callbackURL เพิ่ม ซึ่งยังไม่ทำตอนนี้เพื่อไม่ให้ scope บวมเกินจำเป็น
+- **Vitest ต้องรัน test file แบบ sequential (`fileParallelism: false`):** หลายไฟล์ integration test
+  ใช้ฐานข้อมูล `changdee_test` เดียวกันและ truncate ทุก test ถ้ารันพร้อมกันจะชนกัน (เจอจริงตอนเพิ่ม
+  `tests/integration/auth.test.ts` คู่กับไฟล์ M1 แล้ว test หลุดแบบสุ่ม)
+- **`emailAndPassword.enabled` เช็ค `NODE_ENV !== "production"`** ไม่ใช่ `=== "development"` ตรงตัวตาม
+  คำใน SPEC หัวข้อ 13 เพราะถ้าเช็คตรงตัว จะปิดใช้งานใน `NODE_ENV=test` ด้วย ทำให้ integration test ของ
+  บัญชี seed (email+password) รันใน CI ไม่ได้เลย — ตีความว่า "ไม่ใช่ production" คือเจตนาจริงของ SPEC
+
 ถ้าข้อใดข้างต้นไม่ตรงกับที่ผู้ใช้ต้องการ แจ้งได้ก่อนอนุมัติแผนนี้
 
 ## Milestone Breakdown
