@@ -160,6 +160,24 @@ Production ยังใช้ Cloudflare R2/AWS S3 เหมือนเดิ�
   dev server จริงแล้วเปิด SSE ผ่าน `curl` ด้วย session cookie ของผู้ใช้จริง จากนั้นส่งข้อความจาก script
   คนละ process กัน ยืนยันว่า event ถูกส่งมาถึง `curl` แบบ real-time จริง ไม่ใช่แค่ mock ภายใน test runner
 
+**เพิ่มจาก M7:**
+
+- **เพิ่ม error code ใหม่ 3 ตัวที่ SPEC ไม่ได้ระบุชื่อตรงๆ** (`BOOKING_NOT_COMPLETED`, `REVIEW_WINDOW_EXPIRED`,
+  `REVIEW_EDIT_WINDOW_EXPIRED`) เพื่อให้ตรงกับกฎข้อ 7.7 ที่เขียนไว้เป็นข้อความ ("งานต้อง completed ภายใน 30
+  วัน" และ "แก้ไขได้ภายใน 7 วัน") แต่ไม่มีชื่อ error code กำกับไว้ชัดเจนแบบหัวข้อ 7.2
+- **คนอื่นรีวิวแทนไม่ได้ → `BOOKING_NOT_FOUND`** (ไม่ใช่ `FORBIDDEN`) ใช้แนวทางเดียวกับ booking/chat ใน
+  M5-M6: ไม่เปิดเผยว่า booking ID นั้นมีอยู่จริงหรือไม่ให้คนที่ไม่ใช่คู่กรณี
+- **แก้ไขรีวิวได้แค่ rating/comment** ไม่มีฟิลด์อื่นให้แก้ (bookingId/providerId/customerId ผูกกับรีวิวเดิม
+  ตลอดชีวิต) และยังคง derive provider_id จาก booking เท่านั้นตอนสร้าง ไม่รับจาก client แม้จะส่งมาก็ถูกเพิกเฉย
+  (ทดสอบแล้วว่าส่ง `providerId`/`customerId` ปลอมมาใน input ไม่มีผลอะไร)
+- **`rating_avg`/`rating_count` ไม่ต้องคำนวณเองในโค้ด** ใช้ trigger `reviews_update_provider_rating` ที่สร้าง
+  ไว้ตั้งแต่ M0 (AFTER INSERT/UPDATE/DELETE) ซึ่งครอบคลุมทั้งตอนสร้างและตอนแก้ไขรีวิวให้แล้ว — ยืนยันด้วย
+  integration test และ manual check กับข้อมูล seed จริง (ช่าง seed_provider_1 มี 2 รีวิว ได้ rating_avg
+  3.50 ตรงกับที่คำนวณเอง)
+- **หน้าเขียน/แก้ไขรีวิวอยู่ที่ `/bookings/[id]/review`** (ไม่แยก path สำหรับ "แก้ไข" ต่างหาก) หน้าเดียวกัน
+  เช็คว่ามีรีวิวอยู่แล้วหรือยังผ่าน `getReviewForBooking` แล้วสลับ label ปุ่ม/หัวข้อให้เหมาะสม ตามแนวทาง
+  เดียวกับหน้า booking detail ที่ใช้ URL เดียวกันทั้งสอง role
+
 ## Milestone Breakdown
 
 ### M0 — Project Setup

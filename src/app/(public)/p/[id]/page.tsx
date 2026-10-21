@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { BadgeCheck, Star } from "lucide-react";
 import { getPublicProviderProfile } from "@/server/services/provider";
 import { getSignedImageUrl } from "@/server/services/upload";
+import { listProviderReviews } from "@/server/services/review";
 import { getActor } from "@/server/auth/session";
 import { AppError } from "@/server/lib/errors";
 import { env } from "@/server/lib/env";
@@ -54,6 +55,8 @@ export default async function ProviderProfilePage({ params }: { params: Promise<
   const { id } = await params;
   const [profile, actor] = await Promise.all([loadProfile(id), getActor()]);
   if (!profile) notFound();
+
+  const reviews = await listProviderReviews(profile.id);
 
   const [avatarUrl, portfolio] = await Promise.all([
     getSignedImageUrl(profile.avatarKey),
@@ -178,6 +181,36 @@ export default async function ProviderProfilePage({ params }: { params: Promise<
               </li>
             ))}
           </ul>
+        </section>
+      ) : null}
+
+      {reviews.length > 0 ? (
+        <section>
+          <h2 className="mb-2 font-semibold">รีวิว ({profile.ratingCount})</h2>
+          <div className="flex flex-col gap-3">
+            {reviews.map((review) => (
+              <div key={review.id} className="rounded-lg border p-3 text-sm">
+                <div className="mb-1 flex items-center justify-between">
+                  <p className="font-medium">{review.customerName}</p>
+                  <div className="flex">
+                    {Array.from({ length: 5 }, (_, i) => (
+                      <Star
+                        key={i}
+                        className={`size-4 ${
+                          i < review.rating
+                            ? "fill-current text-amber-500"
+                            : "text-muted-foreground"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+                {review.comment ? (
+                  <p className="text-muted-foreground whitespace-pre-line">{review.comment}</p>
+                ) : null}
+              </div>
+            ))}
+          </div>
         </section>
       ) : null}
 

@@ -1,6 +1,9 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { Star } from "lucide-react";
 import { getActor } from "@/server/auth/session";
 import { getBookingContact, getBookingDetail } from "@/server/services/booking-read";
+import { getReviewForBooking } from "@/server/services/review";
 import { AppError } from "@/server/lib/errors";
 import { BookingStatusBadge } from "@/components/booking/booking-status-badge";
 import { BookingActions } from "@/components/booking/booking-actions";
@@ -30,6 +33,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
   const isCustomer = booking.customerId === actor.id;
   const isProvider = booking.providerId === actor.id;
   const contact = await loadContact(actor, id);
+  const review = booking.status === "completed" ? await getReviewForBooking(actor, id) : null;
 
   const timeline = [
     { label: "สร้างคำขอ", at: booking.createdAt },
@@ -93,6 +97,32 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
           ))}
         </ul>
       </section>
+
+      {isCustomer && booking.status === "completed" ? (
+        <section className="rounded-lg border p-3 text-sm">
+          <h2 className="mb-2 font-medium">รีวิว</h2>
+          {review ? (
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-1">
+                {Array.from({ length: 5 }, (_, i) => (
+                  <Star
+                    key={i}
+                    className={`size-4 ${i < review.rating ? "fill-current text-amber-500" : "text-muted-foreground"}`}
+                  />
+                ))}
+              </div>
+              {review.comment ? <p>{review.comment}</p> : null}
+              <Link href={`/bookings/${booking.id}/review`} className="text-primary underline">
+                แก้ไขรีวิว
+              </Link>
+            </div>
+          ) : (
+            <Link href={`/bookings/${booking.id}/review`}>
+              <span className="text-primary underline">เขียนรีวิว</span>
+            </Link>
+          )}
+        </section>
+      ) : null}
 
       <BookingActions
         bookingId={booking.id}
