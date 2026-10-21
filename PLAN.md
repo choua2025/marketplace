@@ -105,6 +105,33 @@ Production ยังใช้ Cloudflare R2/AWS S3 เหมือนเดิ�
   (ถึงแม้ SPEC หัวข้อ 7.6 จะลิสต์ lat/lng เป็น parameter ของ service ก็ตาม — service ใช้งานแบบนั้นได้ แค่
   UI ตอนนี้ไม่ได้ทำ bookmarkable URL) ถ้า browser ปฏิเสธ/ไม่รองรับ fallback เป็นจุดกลางกรุงเทพฯ
 
+**เพิ่มจาก M5:**
+
+- **หน้า pending ของลูกค้าสามารถซ้อนทับเวลากันได้โดยไม่ error** เช่น ขอช่างคนเดียวกัน 2 ช่วงเวลาที่ชนกันพร้อมกัน
+  (ทั้งคู่ยัง pending) — ตั้งใจตาม SPEC หัวข้อ 7.2/12: ให้ช่างเป็นคนเลือกว่าจะ "ยืนยันรับงาน" ช่วงไหน การกันชน
+  จริงจะเกิดตอน `updateBookingStatus` ไปเป็น `confirmed` เท่านั้น ผ่าน exclusion constraint `no_double_booking`
+  ในฐานข้อมูล (แปลง error code `23P01` เป็น `SLOT_TAKEN` ด้วย `getPgErrorCode()`) — ทดสอบจริงด้วย
+  `Promise.allSettled` ยิง `updateBookingStatus(..., "confirmed")` พร้อมกัน 2 คำขอที่ชนเวลากัน ได้ผลสำเร็จ 1
+  และ `SLOT_TAKEN` 1 ตรงตามที่ออกแบบไว้
+- **`BOOKING_NOT_FOUND` แทน `FORBIDDEN` เสมอเมื่อคนนอกพยายามเข้าถึง booking ที่ไม่ใช่ของตัวเอง** ทั้งตอนอ่าน
+  (`getBookingDetail`/`getBookingContact`) และตอนเขียน (`updateBookingStatus`) เพื่อไม่ให้รู้ว่า booking ID
+  นั้นมีอยู่จริงหรือไม่ (SPEC หัวข้อ 7.3-7.4) — ยกเว้น admin ที่อนุญาตให้ "อ่าน" ได้ (เผื่อ support/dispute ใน
+  อนาคต) แต่ไม่มีสิทธิ์ "เขียน" สถานะแทนคู่กรณีจริง
+- **หน้า `/bookings/[id]` ไม่ได้อยู่ใต้ `(customer)` หรือ `(provider)` route group** เพราะทั้งสอง role ต้องเห็น
+  booking เดียวกันผ่าน URL เดียวกัน (route group ไม่มีผลต่อ URL อยู่แล้ว) หน้า detail นี้จึงเช็ค role จาก
+  `isCustomer`/`isProvider` ที่ compute จากตัว booking เอง แล้วค่อยโชว์ปุ่ม action ที่ต่างกันให้แต่ละฝั่ง
+- **เบอร์โทร/LINE ของอีกฝ่ายถูกล็อกไว้จนกว่า booking จะถึงสถานะ `confirmed` ขึ้นไป** (SPEC หัวข้อ 7.4) ก่อนหน้า
+  นั้นหน้า detail จะโชว์ข้อความแทน ไม่ throw error ไปที่ UI ตรงๆ — ดักจับ `CONTACT_LOCKED` เฉพาะ code นี้แล้ว
+  คืนค่า `null` แทน เพื่อแยกจาก error code อื่นที่ควรปล่อยให้ error boundary จัดการจริง
+- **ดึง `uploadFile()` (browser-side presign+PUT) และ `toActionResult()`/`createUploadUrlAction` ออกมาเป็น
+  ของกลาง** (`src/lib/upload-client.ts`, `src/server/actions/result.ts`, `src/server/actions/upload.ts`)
+  เพราะฟอร์มจองงานต้องอัปโหลดรูปเหมือนหน้าจัดการ portfolio ของช่างทุกประการ — รอจน consumer ตัวที่สองเกิดขึ้น
+  จริงก่อนค่อยดึงออกมา ไม่ได้เผื่อไว้ล่วงหน้า
+- **เวลาทำงาน/วันหยุดเช็คจาก timezone ของช่างจริง ไม่ใช่ server/browser timezone** ใช้
+  `Intl.DateTimeFormat` + `hourCycle: "h23"` คำนวณ weekday และเวลาท้องถิ่นจาก `providerProfiles.timezone`
+  (ป้องกันปัญหา `hour12`/"24:00" ของเที่ยงคืน) — ทดสอบจริงด้วยการ seed availability จันทร์-เสาร์ 08:00-18:00
+  แล้วยิงจองวันอาทิตย์/หลังเวลาปิด ได้ `OUTSIDE_WORKING_HOURS` ตามคาด
+
 ถ้าข้อใดข้างต้นไม่ตรงกับที่ผู้ใช้ต้องการ แจ้งได้ก่อนอนุมัติแผนนี้
 
 ## Milestone Breakdown

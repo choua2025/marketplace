@@ -9,45 +9,30 @@ import {
 import {
   addPortfolioItem,
   confirmAvatarUpload,
-  createUploadUrl,
   removePortfolioItem,
 } from "@/server/services/upload";
-
-type Result<T> = { ok: true; data: T } | { ok: false; error: string };
-
-function toResult<T>(fn: () => Promise<T>): Promise<Result<T>> {
-  return fn()
-    .then((data) => ({ ok: true as const, data }))
-    .catch((error: unknown) => ({
-      ok: false as const,
-      error: error instanceof Error ? error.message : "UNKNOWN_ERROR",
-    }));
-}
+import { toActionResult } from "@/server/actions/result";
 
 export async function updateProviderProfileAction(input: unknown) {
-  return toResult(async () => updateProviderProfile(await getActor(), input));
+  return toActionResult(async () => updateProviderProfile(await getActor(), input));
 }
 
 export async function setProviderCategoriesAction(input: unknown) {
-  return toResult(async () => setProviderCategories(await getActor(), input));
+  return toActionResult(async () => setProviderCategories(await getActor(), input));
 }
 
 export async function setAvailabilityRulesAction(input: unknown) {
-  return toResult(async () => setAvailabilityRules(await getActor(), input));
-}
-
-export async function createUploadUrlAction(input: unknown) {
-  return toResult(async () => createUploadUrl(await getActor(), input));
+  return toActionResult(async () => setAvailabilityRules(await getActor(), input));
 }
 
 export async function confirmAvatarUploadAction(key: string) {
-  return toResult(async () => confirmAvatarUpload(await getActor(), key));
+  return toActionResult(async () => confirmAvatarUpload(await getActor(), key));
 }
 
 export async function addPortfolioItemAction(key: string, caption?: string) {
-  return toResult(async () => addPortfolioItem(await getActor(), key, caption));
+  return toActionResult(async () => addPortfolioItem(await getActor(), key, caption));
 }
 
 export async function removePortfolioItemAction(itemId: string) {
-  return toResult(async () => removePortfolioItem(await getActor(), itemId));
+  return toActionResult(async () => removePortfolioItem(await getActor(), itemId));
 }

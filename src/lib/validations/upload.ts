@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Shared between client forms and the server service (SPEC.md section 4).
-export const UPLOAD_PURPOSES = ["avatar", "portfolio"] as const;
+export const UPLOAD_PURPOSES = ["avatar", "portfolio", "booking"] as const;
 export type UploadPurpose = (typeof UPLOAD_PURPOSES)[number];
 
 export const ALLOWED_IMAGE_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;

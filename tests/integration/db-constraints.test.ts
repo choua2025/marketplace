@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { DrizzleQueryError } from "drizzle-orm";
 import { eq } from "drizzle-orm";
+import { getPgErrorCode } from "@/server/lib/db-errors";
 import { resetTestDatabase, testDb } from "../helpers/db";
 import {
   bookings,
@@ -12,13 +12,6 @@ import {
   reviews,
   user,
 } from "@/server/db/schema";
-
-function pgErrorCode(error: unknown): string | undefined {
-  if (!(error instanceof DrizzleQueryError)) return undefined;
-  const cause = error.cause;
-  if (!cause || typeof cause !== "object" || !("code" in cause)) return undefined;
-  return String((cause as { code: unknown }).code);
-}
 
 async function createUserChain(id: string, role: "customer" | "provider") {
   await testDb.insert(user).values({ id, name: id, email: `${id}@test.local` });
@@ -76,7 +69,7 @@ describe("no_double_booking exclusion constraint", () => {
       caught = error;
     }
 
-    expect(pgErrorCode(caught)).toBe("23P01");
+    expect(getPgErrorCode(caught)).toBe("23P01");
   });
 
   it("allows two overlapping pending bookings for the same provider", async () => {

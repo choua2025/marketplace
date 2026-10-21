@@ -38,6 +38,9 @@ export async function createUploadUrl(
   if (parsed.purpose === "portfolio" && actor.role !== "provider") {
     throw new AppError("FORBIDDEN");
   }
+  if (parsed.purpose === "booking" && actor.role !== "customer") {
+    throw new AppError("FORBIDDEN");
+  }
 
   const ext = EXTENSION_BY_CONTENT_TYPE[parsed.contentType];
   const key = `${parsed.purpose}/${actor.id}/${randomUUID()}.${ext}`;

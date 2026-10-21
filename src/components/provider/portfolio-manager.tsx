@@ -7,32 +7,14 @@ import { Loader2, Trash2, Upload } from "lucide-react";
 import {
   addPortfolioItemAction,
   confirmAvatarUploadAction,
-  createUploadUrlAction,
   removePortfolioItemAction,
 } from "@/app/(provider)/dashboard/profile/actions";
+import { uploadFile } from "@/lib/upload-client";
 import { Button } from "@/components/ui/button";
 
 interface PortfolioManagerProps {
   avatarUrl: string | null;
   initialPortfolio: { id: string; url: string | null; caption: string | null }[];
-}
-
-async function uploadFile(file: File, purpose: "avatar" | "portfolio"): Promise<string> {
-  const presignResult = await createUploadUrlAction({
-    purpose,
-    contentType: file.type,
-    contentLength: file.size,
-  });
-  if (!presignResult.ok) throw new Error(presignResult.error);
-
-  const putResponse = await fetch(presignResult.data.uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": file.type },
-    body: file,
-  });
-  if (!putResponse.ok) throw new Error("UPLOAD_FAILED");
-
-  return presignResult.data.key;
 }
 
 export function PortfolioManager({ avatarUrl, initialPortfolio }: PortfolioManagerProps) {
