@@ -28,7 +28,12 @@ export default async function MyBookingsPage({
 
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-4 p-4">
-      <h1 className="text-2xl font-bold">การจองของฉัน</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">การจองของฉัน</h1>
+        <Link href="/messages" className="text-primary text-sm underline">
+          ข้อความ
+        </Link>
+      </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
         {TABS.map((tab) => (

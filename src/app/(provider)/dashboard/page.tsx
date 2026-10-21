@@ -36,9 +36,14 @@ export default async function ProviderDashboardPage() {
     <main className="mx-auto flex max-w-2xl flex-col gap-6 p-4 pb-12">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">แดชบอร์ดช่าง</h1>
-        <Link href="/bookings" className="text-primary text-sm underline">
-          ดูทั้งหมด
-        </Link>
+        <div className="flex gap-3">
+          <Link href="/messages" className="text-primary text-sm underline">
+            ข้อความ
+          </Link>
+          <Link href="/bookings" className="text-primary text-sm underline">
+            ดูทั้งหมด
+          </Link>
+        </div>
       </div>
 
       <section>

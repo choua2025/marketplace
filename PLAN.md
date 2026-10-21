@@ -132,7 +132,33 @@ Production ยังใช้ Cloudflare R2/AWS S3 เหมือนเดิ�
   (ป้องกันปัญหา `hour12`/"24:00" ของเที่ยงคืน) — ทดสอบจริงด้วยการ seed availability จันทร์-เสาร์ 08:00-18:00
   แล้วยิงจองวันอาทิตย์/หลังเวลาปิด ได้ `OUTSIDE_WORKING_HOURS` ตามคาด
 
-ถ้าข้อใดข้างต้นไม่ตรงกับที่ผู้ใช้ต้องการ แจ้งได้ก่อนอนุมัติแผนนี้
+**เพิ่มจาก M6:**
+
+- **ไม่ต้องติดตั้งแพ็กเกจใหม่** ใช้ `pg` (มีอยู่แล้วตั้งแต่ M0) สร้าง connection แยกสำหรับ `LISTEN` และใช้
+  Web Streams API (`ReadableStream`) ของ Next.js Route Handler ทำ SSE โดยตรง ไม่ต้องพึ่งไลบรารีเพิ่ม
+  ตามที่ SPEC หัวข้อ 3 ตั้งใจไว้ ("ไม่ต้องมี service เพิ่ม")
+- **`startConversation(providerId)` จำกัดให้ลูกค้าเป็นผู้เริ่มเท่านั้น** (ช่างเรียกแล้วได้ `FORBIDDEN`) ตรงตาม
+  signature ที่ SPEC หัวข้อ 7.8 กำหนดตรงตัว — ช่างตอบกลับได้ผ่านกล่องแชต/หน้าแชตที่มีอยู่ แต่ไม่มีปุ่ม
+  "เริ่มแชทกับลูกค้า" ใหม่ เพราะ schema `conversations` ผูกคู่ (customer_id, provider_id) ไว้แบบตายตัวอยู่แล้ว
+  ไม่มีเหตุผลทางสเปกที่ต้องให้ช่างเริ่มคู่สนทนาใหม่ที่ยังไม่มีการจอง/ทักมาก่อน
+- **คนนอกที่ไม่ใช่คู่สนทนา → `NOT_FOUND` เสมอ** (อ่าน/ส่ง/mark read ทุกทาง) ใช้แนวทางเดียวกับ `BOOKING_NOT_FOUND`
+  ใน M5: ไม่บอกว่า "ไม่มีสิทธิ์" เพื่อไม่ให้รู้ว่า conversation ID นั้นมีอยู่จริง
+- **LISTEN connection แยกจาก query Pool จริง** (`src/server/realtime/pg-listener.ts`) เป็น `pg.Client` เดี่ยว
+  ต่อ process ตามที่ SPEC กำหนด เก็บ subscriber count ต่อ channel ไว้ด้วย เผื่อ connection หลุดแล้วต้อง
+  `LISTEN` ใหม่ทุก channel ที่ยังมีผู้ติดตามอยู่ตอน reconnect (best-effort -- ถ้าหลุดระหว่างนั้นผู้ใช้ไม่เห็น
+  ข้อความใหม่จนกว่าจะ reconnect สำเร็จ แต่ heartbeat ทุก 25 วิยังทำให้ connection ไม่ถูก proxy/browser ตัดทิ้ง)
+- **NOTIFY payload ส่งแค่ message id ตามสเปกเป๊ะ ๆ** SSE route ดึงข้อความจริงผ่าน service (`getMessageById`)
+  ทุกครั้งที่มี NOTIFY แทนที่จะเชื่อ payload ตรงๆ — เพิ่ม signed URL ให้รูปในข้อความตรงนี้ด้วยก่อนส่งลง SSE
+- **รูปในแชต key เป็น `chat/{conversationId}/{uuid}.{ext}`** (ไม่ใช่ `{purpose}/{actorId}/...` แบบ avatar/
+  portfolio/booking) เพราะทั้งสองฝ่ายต้องเห็นรูปเดียวกันได้ — `createUploadUrl` ตรวจว่า actor เป็นคู่สนทนา
+  จริงก่อนออก presigned URL ให้ purpose นี้ และ `sendMessage` ตรวจ prefix ของ `imageKey` อีกชั้นก่อนบันทึก
+- **ฝั่ง client มองเห็นข้อความใหม่ 2 ทาง:** (1) เรียก `sendMessageAction` แล้วต่อผลลัพธ์ที่ได้ไปต่อท้ายทันที
+  (optimistic) และ (2) รับผ่าน SSE ที่ trigger จะ broadcast กลับมาให้ทุกคนในห้องรวมถึงคนที่ส่งเอง — กันข้อความ
+  ซ้ำด้วยการเช็ค `id` ซ้ำก่อน append ทุกครั้ง เพื่อให้ผู้ส่งเห็นข้อความทันทีไม่ต้องรอ round-trip ของ NOTIFY
+  แต่ยังมี SSE เป็น source of truth เดียวสำหรับอีกฝ่าย
+- **ทดสอบ LISTEN/NOTIFY ข้าม process จริง** (ไม่ใช่แค่ใน process เดียวกันกับ integration test) ด้วยการรัน
+  dev server จริงแล้วเปิด SSE ผ่าน `curl` ด้วย session cookie ของผู้ใช้จริง จากนั้นส่งข้อความจาก script
+  คนละ process กัน ยืนยันว่า event ถูกส่งมาถึง `curl` แบบ real-time จริง ไม่ใช่แค่ mock ภายใน test runner
 
 ## Milestone Breakdown
 

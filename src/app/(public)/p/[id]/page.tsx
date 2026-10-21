@@ -5,11 +5,13 @@ import { notFound } from "next/navigation";
 import { BadgeCheck, Star } from "lucide-react";
 import { getPublicProviderProfile } from "@/server/services/provider";
 import { getSignedImageUrl } from "@/server/services/upload";
+import { getActor } from "@/server/auth/session";
 import { AppError } from "@/server/lib/errors";
 import { env } from "@/server/lib/env";
 import { Button } from "@/components/ui/button";
 import { CategoryIcon } from "@/components/category-icon";
 import { ProviderMapLoader } from "@/components/map/provider-map-loader";
+import { StartChatButton } from "@/components/chat/start-chat-button";
 
 const WEEKDAY_LABELS = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
 const PRICE_UNIT_LABEL: Record<string, string> = {
@@ -50,7 +52,7 @@ export async function generateMetadata({
 
 export default async function ProviderProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const profile = await loadProfile(id);
+  const [profile, actor] = await Promise.all([loadProfile(id), getActor()]);
   if (!profile) notFound();
 
   const [avatarUrl, portfolio] = await Promise.all([
@@ -119,6 +121,9 @@ export default async function ProviderProfilePage({ params }: { params: Promise<
         <Button asChild className="h-12 w-full max-w-xs">
           <Link href={`/book/${profile.id}`}>จองงานกับช่างนี้</Link>
         </Button>
+        {actor && actor.role === "customer" && actor.id !== profile.id ? (
+          <StartChatButton providerId={profile.id} />
+        ) : null}
       </section>
 
       {profile.categories.length > 0 ? (

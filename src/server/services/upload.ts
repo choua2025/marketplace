@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { portfolioItems, profiles } from "@/server/db/schema";
+import { conversations, portfolioItems, profiles } from "@/server/db/schema";
 import { AppError } from "@/server/lib/errors";
 import type { Actor } from "@/server/lib/actor";
 import { createPresignedUploadUrl, createPresignedViewUrl } from "@/server/storage/s3";
@@ -43,7 +43,25 @@ export async function createUploadUrl(
   }
 
   const ext = EXTENSION_BY_CONTENT_TYPE[parsed.contentType];
-  const key = `${parsed.purpose}/${actor.id}/${randomUUID()}.${ext}`;
+  // Chat images are keyed by conversation (both parties need to view them
+  // later), not by the uploader -- verify actor is actually a party first.
+  let key: string;
+  if (parsed.purpose === "chat") {
+    const conversationId = parsed.conversationId!;
+    const [conversation] = await db
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.id, conversationId),
+          or(eq(conversations.customerId, actor.id), eq(conversations.providerId, actor.id)),
+        ),
+      );
+    if (!conversation) throw new AppError("NOT_FOUND");
+    key = `chat/${conversationId}/${randomUUID()}.${ext}`;
+  } else {
+    key = `${parsed.purpose}/${actor.id}/${randomUUID()}.${ext}`;
+  }
 
   const uploadUrl = await createPresignedUploadUrl(key, parsed.contentType, parsed.contentLength);
 
