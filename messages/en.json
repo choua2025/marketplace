@@ -15,6 +15,7 @@
     "FORBIDDEN": "You don't have permission to do that.",
     "NOT_FOUND": "Not found.",
     "VALIDATION_ERROR": "The submitted data is invalid.",
-    "UNAUTHORIZED": "Please sign in to continue."
+    "UNAUTHORIZED": "Please sign in to continue.",
+    "PORTFOLIO_FULL": "Portfolio is full (max 30 items)."
   }
 }

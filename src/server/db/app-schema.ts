@@ -124,17 +124,21 @@ export const providerCategories = pgTable(
   (table) => [primaryKey({ columns: [table.providerId, table.categoryId] })],
 );
 
-export const portfolioItems = pgTable("portfolio_items", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  providerId: text("provider_id")
-    .notNull()
-    .references(() => providerProfiles.id, { onDelete: "cascade" }),
-  imageKey: text("image_key").notNull(),
-  caption: varchar("caption", { length: 200 }),
-  sortOrder: integer("sort_order").notNull().default(0),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const portfolioItems = pgTable(
+  "portfolio_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    providerId: text("provider_id")
+      .notNull()
+      .references(() => providerProfiles.id, { onDelete: "cascade" }),
+    imageKey: text("image_key").notNull(),
+    caption: varchar("caption", { length: 200 }),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [unique("portfolio_items_provider_image_unique").on(table.providerId, table.imageKey)],
+);
 
 export const availabilityRules = pgTable(
   "availability_rules",

@@ -21,6 +21,7 @@ export const APP_ERROR_HTTP_STATUS = {
   NOT_FOUND: 404,
   VALIDATION_ERROR: 400,
   UNAUTHORIZED: 401,
+  PORTFOLIO_FULL: 409,
 } as const satisfies Record<string, number>;
 
 export type AppErrorCode = keyof typeof APP_ERROR_HTTP_STATUS;

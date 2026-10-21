@@ -70,6 +70,22 @@ Production ยังใช้ Cloudflare R2/AWS S3 เหมือนเดิ�
   คำใน SPEC หัวข้อ 13 เพราะถ้าเช็คตรงตัว จะปิดใช้งานใน `NODE_ENV=test` ด้วย ทำให้ integration test ของ
   บัญชี seed (email+password) รันใน CI ไม่ได้เลย — ตีความว่า "ไม่ใช่ production" คือเจตนาจริงของ SPEC
 
+**เพิ่มจาก M3:**
+
+- **แก้บั๊กจาก M1: `portfolio_items` ไม่มี unique constraint** ทำให้รัน `pnpm db:seed` ซ้ำโดยไม่ `db:reset`
+  ก่อนได้แถวซ้ำ (เจอจริงตอน smoke test M3 — มี 2 แถวต่อช่างทั้งที่ seed ควร idempotent) เพิ่ม
+  `unique(provider_id, image_key)` ใน migration ใหม่ และ dedupe ข้อมูลเก่าใน dev DB ก่อน apply
+- **รูปภาพทั้งหมด (avatar/portfolio/booking/chat) ใช้ signed URL เสมอ** ไม่ทำ public-read bucket policy
+  แม้ SPEC หัวข้อ 7.9 จะเจาะจงคำว่า "private" ไว้แค่ booking/chat — เหตุผล: Garage ตั้ง policy แบบ
+  per-prefix (เช่น public แค่ avatars/) ไม่ได้ง่ายเท่า whole-bucket, จึงให้ avatar/portfolio ใช้ signed URL
+  อายุยาวกว่า (1 ชม.) ส่วน booking/chat ใช้ 10 นาทีตาม SPEC ตรงตัว ผลลัพธ์ต่อผู้ใช้เหมือนกัน (ดูได้)
+  แต่ bucket ยังล็อกไว้ทั้งหมดเหมือนเดิม
+- **บังคับ max-size จริงด้วยการ sign `ContentLength`** ไม่ใช่แค่เช็คตอน presign แล้วหวังว่า client ซื่อสัตย์
+  — ทดสอบจริงแล้วว่า Garage ปฏิเสธ request ที่ขนาดไม่ตรงกับที่ sign ไว้ (403 Invalid signature)
+- **ต้องตั้ง `requestChecksumCalculation: "WHEN_REQUIRED"` บน S3Client** AWS SDK v3 เวอร์ชันใหม่ (≥3.729)
+  default เป็น `WHEN_SUPPORTED` ซึ่งแอบใส่ checksum header เปล่าๆใน presigned PUT URL ทำให้ Garage/MinIO
+  ปฏิเสธการอัปโหลดทุกครั้งด้วย `InvalidDigest` — เจอจาก GitHub issue ตรงๆ ก่อนเขียนโค้ดจริง
+
 ถ้าข้อใดข้างต้นไม่ตรงกับที่ผู้ใช้ต้องการ แจ้งได้ก่อนอนุมัติแผนนี้
 
 ## Milestone Breakdown

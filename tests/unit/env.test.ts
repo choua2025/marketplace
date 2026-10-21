@@ -8,6 +8,12 @@ const UNDER_TEST = [
   "BETTER_AUTH_URL",
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
+  "S3_ENDPOINT",
+  "S3_REGION",
+  "S3_ACCESS_KEY_ID",
+  "S3_SECRET_ACCESS_KEY",
+  "S3_BUCKET",
+  "S3_FORCE_PATH_STYLE",
 ];
 
 let ORIGINAL_ENV: NodeJS.ProcessEnv;
@@ -40,6 +46,12 @@ const VALID = {
   DATABASE_APP_URL: "postgres://changdee_app:secret@localhost:55432/changdee",
   BETTER_AUTH_SECRET: "dev-secret",
   BETTER_AUTH_URL: "https://changdee.example",
+  S3_ENDPOINT: "https://s3.example.com",
+  S3_REGION: "auto",
+  S3_ACCESS_KEY_ID: "dev-access-key",
+  S3_SECRET_ACCESS_KEY: "dev-secret-key",
+  S3_BUCKET: "changdee",
+  S3_FORCE_PATH_STYLE: "true",
 };
 
 describe("server/lib/env", () => {
@@ -48,7 +60,7 @@ describe("server/lib/env", () => {
 
     const { env } = await import("@/server/lib/env");
 
-    expect(env).toEqual(VALID);
+    expect(env).toEqual({ ...VALID, S3_FORCE_PATH_STYLE: true });
   });
 
   it("defaults NODE_ENV to development when unset", async () => {
