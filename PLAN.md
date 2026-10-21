@@ -86,6 +86,25 @@ Production ยังใช้ Cloudflare R2/AWS S3 เหมือนเดิ�
   default เป็น `WHEN_SUPPORTED` ซึ่งแอบใส่ checksum header เปล่าๆใน presigned PUT URL ทำให้ Garage/MinIO
   ปฏิเสธการอัปโหลดทุกครั้งด้วย `InvalidDigest` — เจอจาก GitHub issue ตรงๆ ก่อนเขียนโค้ดจริง
 
+**เพิ่มจาก M4:**
+
+- **หน้า `/search` และ `/p/[id]` ยังไม่มี `[locale]`** เช่นเดียวกับที่ตกลงไว้ตั้งแต่ M2 — ย้ายเข้า `[locale]`
+  พร้อมกันหมดใน M8
+- **ปุ่ม "จองงานกับช่างนี้" บนหน้าโปรไฟล์ชี้ไป `/book/[id]` ซึ่งยังไม่มีหน้าจริง (จะ 404) จนกว่าจะถึง M5**
+  เลือกใส่ปุ่มไว้ตามโครงที่ SPEC หัวข้อ 9 กำหนด (ต้องเห็นปุ่มจองโดยไม่ต้องเลื่อน) ดีกว่าตัดออกไปเฉยๆ
+  แต่ไม่ได้ปลอมว่าใช้งานได้แล้ว — ระบบจองจริงจะมาทำให้ลิงก์นี้ใช้งานได้ใน M5
+- **แก้บั๊กอีกตัวจาก M1 ที่เจอตอน smoke test M4:** seed.ts สร้างแถว `portfolio_items` แต่ไม่เคยอัปโหลดไฟล์จริง
+  ขึ้น storage เลย (ตอน M1 ระบบอัปโหลดยังไม่มี) ทำให้ signed URL ที่ generate ได้ถูกต้องตาม logic แต่
+  เปิดแล้ว 404 จริง เพราะไฟล์ไม่มีอยู่จริงใน Garage — เพิ่ม `putObject()` ใน storage client แล้วให้ seed
+  อัปโหลด PNG 1x1 จริงๆ ไปที่ key ที่บันทึกไว้ ตรวจแล้วว่าเปิดได้จริง (HTTP 200, PNG ใช้งานได้)
+- **รูปภาพ (avatar/portfolio) แสดงผ่าน `next/image` แบบ `unoptimized`** ไม่ใช้ Next Image Optimization เต็ม
+  รูปแบบ เพราะ URL เป็น signed URL ที่เปลี่ยนทุกครั้ง (query string ใหม่ตลอด) การตั้ง remotePatterns ให้ตรง
+  กับ domain ที่เปลี่ยนได้ตามสภาพแวดล้อม (dev=Garage, prod=R2/S3) ไม่คุ้มกับความซับซ้อน ไว้พิจารณาอีกครั้ง
+  ตอน M8 ปรับ Lighthouse ถ้าจำเป็นต้องบีบขนาดภาพจริงจัง
+- **ตั้งค่าพิกัด search อ้างอิงจาก browser geolocation เสมอ** ไม่รับ lat/lng ผ่าน query param ของ `/search`
+  (ถึงแม้ SPEC หัวข้อ 7.6 จะลิสต์ lat/lng เป็น parameter ของ service ก็ตาม — service ใช้งานแบบนั้นได้ แค่
+  UI ตอนนี้ไม่ได้ทำ bookmarkable URL) ถ้า browser ปฏิเสธ/ไม่รองรับ fallback เป็นจุดกลางกรุงเทพฯ
+
 ถ้าข้อใดข้างต้นไม่ตรงกับที่ผู้ใช้ต้องการ แจ้งได้ก่อนอนุมัติแผนนี้
 
 ## Milestone Breakdown

@@ -48,3 +48,15 @@ export async function createPresignedViewUrl(
   const command = new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: key });
   return getSignedUrl(client, command, { expiresIn: expiresInSeconds });
 }
+
+/** Direct server-side upload -- only for trusted server code (e.g. db:seed). */
+export async function putObject(key: string, body: Uint8Array, contentType: string): Promise<void> {
+  await client.send(
+    new PutObjectCommand({
+      Bucket: env.S3_BUCKET,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    }),
+  );
+}

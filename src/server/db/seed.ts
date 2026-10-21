@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
+import { putObject } from "@/server/storage/s3";
 import { db } from "./client";
 import {
   account,
@@ -209,6 +210,12 @@ const PROVIDER_DEFS: ProviderDef[] = [
 
 const WEEKDAYS_MON_TO_SAT = [1, 2, 3, 4, 5, 6] as const;
 
+// A real (tiny, valid, 1x1 transparent) PNG -- so the seeded portfolio
+// item's signed URL actually resolves to something instead of 404ing.
+// There was previously just a made-up key with nothing uploaded for it.
+const PLACEHOLDER_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==";
+
 // Deterministic (not random) so re-running `pnpm db:seed` hits the same
 // primary keys and no-ops via onConflictDoNothing instead of piling up
 // duplicate bookings/reviews each run.
@@ -318,11 +325,13 @@ async function seedProviders(
         .onConflictDoNothing();
     }
 
+    const portfolioImageKey = `portfolio/${def.id}/seed-sample.png`;
+    await putObject(portfolioImageKey, Buffer.from(PLACEHOLDER_PNG_BASE64, "base64"), "image/png");
     await db
       .insert(portfolioItems)
       .values({
         providerId: def.id,
-        imageKey: `portfolio/${def.id}/seed-sample.jpg`,
+        imageKey: portfolioImageKey,
         caption: `ตัวอย่างผลงานของ ${def.displayName}`,
         sortOrder: 0,
       })
