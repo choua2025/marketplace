@@ -1,0 +1,22 @@
+# Dev-only S3-compatible storage (Garage). Production uses Cloudflare R2/AWS S3
+# directly per SPEC.md section 4 -- this config and its secrets never run in prod,
+# so the rpc_secret/admin_token below are fixed dev values, not real secrets.
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+
+db_engine = "lmdb"
+replication_factor = 1
+compression_level = 2
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+rpc_secret = "41ad0f19592b3e43bfb00d731c297927ee93795a9d4033814f442d86c5790987"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.garage.localhost"
+
+[admin]
+api_bind_addr = "[::]:3903"
+admin_token = "f4a425a1f27c3605342e27c7eadc854e559c95573027432e1e56669a22c5f3f1"

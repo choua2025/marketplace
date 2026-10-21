@@ -1,0 +1,4 @@
+# Shell scripts are bind-mounted straight into Linux containers by
+# docker-compose; CRLF line endings would break their shebang/execution on
+# any Windows checkout, regardless of core.autocrlf.
+*.sh text eol=lf
