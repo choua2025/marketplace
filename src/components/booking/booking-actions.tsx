@@ -1,9 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
-import { updateBookingStatusAction } from "@/app/bookings/[id]/actions";
+import { updateBookingStatusAction } from "@/app/[locale]/bookings/[id]/actions";
 import type { BookingStatus } from "@/lib/validations/booking";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";

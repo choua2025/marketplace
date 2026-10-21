@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { Loader2 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { becomeProviderAction } from "@/server/actions/profile";
@@ -180,12 +180,14 @@ export function LoginForm({ devEmailLoginEnabled }: LoginFormProps) {
           </p>
           <Input
             type="email"
+            aria-label="อีเมล"
             placeholder="customer1@changdee.test"
             value={devEmail}
             onChange={(e) => setDevEmail(e.target.value)}
           />
           <Input
             type="password"
+            aria-label="รหัสผ่าน"
             placeholder="password123"
             value={devPassword}
             onChange={(e) => setDevPassword(e.target.value)}

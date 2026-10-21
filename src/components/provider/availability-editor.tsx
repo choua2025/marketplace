@@ -1,10 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { AvailabilityRuleDto } from "@/server/services/provider";
-import { setAvailabilityRulesAction } from "@/app/(provider)/dashboard/profile/actions";
+import { setAvailabilityRulesAction } from "@/app/[locale]/(provider)/dashboard/profile/actions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -73,13 +73,16 @@ export function AvailabilityEditor({
       <h2 className="font-medium">เวลาทำงานรายสัปดาห์</h2>
       {days.map((day, weekday) => (
         <div key={weekday} className="flex items-center gap-3">
-          <Checkbox
-            checked={day.enabled}
-            onCheckedChange={(checked) => updateDay(weekday, { enabled: checked === true })}
-          />
-          <span className="w-20 text-sm">{WEEKDAY_LABELS[weekday]}</span>
+          <label className="flex items-center gap-2">
+            <Checkbox
+              checked={day.enabled}
+              onCheckedChange={(checked) => updateDay(weekday, { enabled: checked === true })}
+            />
+            <span className="w-20 text-sm">{WEEKDAY_LABELS[weekday]}</span>
+          </label>
           <Input
             type="time"
+            aria-label={`เวลาเริ่มงานวัน${WEEKDAY_LABELS[weekday]}`}
             value={day.startTime}
             disabled={!day.enabled}
             onChange={(e) => updateDay(weekday, { startTime: e.target.value })}
@@ -88,6 +91,7 @@ export function AvailabilityEditor({
           <span>-</span>
           <Input
             type="time"
+            aria-label={`เวลาเลิกงานวัน${WEEKDAY_LABELS[weekday]}`}
             value={day.endTime}
             disabled={!day.enabled}
             onChange={(e) => updateDay(weekday, { endTime: e.target.value })}

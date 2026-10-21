@@ -7,7 +7,7 @@ import {
   loadOlderMessagesAction,
   markConversationReadAction,
   sendMessageAction,
-} from "@/app/messages/[conversationId]/actions";
+} from "@/app/[locale]/messages/[conversationId]/actions";
 import { uploadFile } from "@/lib/upload-client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -176,7 +176,13 @@ export function ChatThread({
           placeholder="พิมพ์ข้อความ..."
           className="min-h-12 flex-1 resize-none"
         />
-        <Button type="button" size="icon" disabled={sending || !body.trim()} onClick={handleSend}>
+        <Button
+          type="button"
+          size="icon"
+          disabled={sending || !body.trim()}
+          onClick={handleSend}
+          aria-label="ส่งข้อความ"
+        >
           {sending ? <Loader2 className="animate-spin" /> : <Send className="size-4" />}
         </Button>
       </div>
@@ -196,7 +202,11 @@ function ChatBubble({ message, isOwn }: { message: StreamedMessage; isOwn: boole
       >
         {message.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- blob previews + signed URLs aren't worth remotePatterns config (see PLAN.md)
-          <img src={message.imageUrl} alt="" className="mb-1 max-h-60 rounded object-cover" />
+          <img
+            src={message.imageUrl}
+            alt="รูปภาพที่ส่งในแชต"
+            className="mb-1 max-h-60 rounded object-cover"
+          />
         ) : null}
         {message.body ? <p className="whitespace-pre-wrap">{message.body}</p> : null}
       </div>

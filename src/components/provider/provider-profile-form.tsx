@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { useState } from "react";
 import { Loader2, MapPin } from "lucide-react";
 import type { ProviderProfileDto } from "@/server/services/provider";
@@ -8,7 +8,7 @@ import type { CategoryDto } from "@/server/services/category";
 import {
   setProviderCategoriesAction,
   updateProviderProfileAction,
-} from "@/app/(provider)/dashboard/profile/actions";
+} from "@/app/[locale]/(provider)/dashboard/profile/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

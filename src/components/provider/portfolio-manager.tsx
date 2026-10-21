@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { useRef, useState } from "react";
 import Image from "next/image";
 import { Loader2, Trash2, Upload } from "lucide-react";
@@ -8,7 +8,7 @@ import {
   addPortfolioItemAction,
   confirmAvatarUploadAction,
   removePortfolioItemAction,
-} from "@/app/(provider)/dashboard/profile/actions";
+} from "@/app/[locale]/(provider)/dashboard/profile/actions";
 import { uploadFile } from "@/lib/upload-client";
 import { Button } from "@/components/ui/button";
 

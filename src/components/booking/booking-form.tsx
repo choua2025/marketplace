@@ -1,9 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { useRef, useState } from "react";
 import { Loader2, Upload, X } from "lucide-react";
-import { createBookingAction } from "@/app/(customer)/book/[providerId]/actions";
+import { createBookingAction } from "@/app/[locale]/(customer)/book/[providerId]/actions";
 import { uploadFile } from "@/lib/upload-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -189,7 +189,7 @@ export function BookingForm({ providerId, categories, basePrice, priceUnit }: Bo
 
       <Button
         type="button"
-        className="h-12"
+        className="h-12 bg-brand-accent text-brand-accent-foreground hover:bg-brand-accent/90"
         disabled={submitting || !startAt || !endAt || !description || !address}
         onClick={handleSubmit}
       >

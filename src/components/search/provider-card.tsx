@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { BadgeCheck, Star } from "lucide-react";
 import type { SearchResultDto } from "@/server/services/search";
 

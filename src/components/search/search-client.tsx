@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { List, Loader2, MapIcon } from "lucide-react";
+import { List, Loader2, LocateFixed, MapIcon } from "lucide-react";
 import type { CategoryDto } from "@/server/services/category";
 import type { SearchResultDto } from "@/server/services/search";
-import { searchProvidersAction } from "@/app/(public)/search/actions";
+import { searchProvidersAction } from "@/app/[locale]/(public)/search/actions";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -24,7 +24,12 @@ interface SearchClientProps {
 }
 
 export function SearchClient({ allCategories, initialCategorySlug }: SearchClientProps) {
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  // Defaults to Bangkok immediately, no permission prompt on load --
+  // asking for geolocation before the user has done anything is a
+  // Lighthouse best-practices violation and bad UX besides. "ใช้ตำแหน่ง
+  // ของฉัน" below requests it only on explicit user action.
+  const [location, setLocation] = useState(BANGKOK_CENTER);
+  const [locating, setLocating] = useState(false);
   const [category, setCategory] = useState(initialCategorySlug ?? "any");
   const [sort, setSort] = useState("recommended");
   const [minRating, setMinRating] = useState("any");
@@ -35,37 +40,20 @@ export function SearchClient({ allCategories, initialCategorySlug }: SearchClien
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    // Safety net: covers browsers without the Geolocation API at all, not
-    // just permission denial (which the error callback below handles).
-    const fallbackTimer = setTimeout(() => {
-      if (!cancelled) setLocation((current) => current ?? BANGKOK_CENTER);
-    }, 6000);
-
-    if (typeof navigator !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          if (!cancelled) {
-            setLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
-          }
-        },
-        () => {
-          if (!cancelled) setLocation(BANGKOK_CENTER);
-        },
-        { timeout: 5000 },
-      );
-    }
-
-    return () => {
-      cancelled = true;
-      clearTimeout(fallbackTimer);
-    };
-  }, []);
+  function useMyLocation() {
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocating(false);
+        setLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
+      },
+      () => setLocating(false),
+      { timeout: 5000 },
+    );
+  }
 
   useEffect(() => {
-    if (!location) return;
     const { lat, lng } = location;
 
     let cancelled = false;
@@ -103,7 +91,7 @@ export function SearchClient({ allCategories, initialCategorySlug }: SearchClien
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger className="h-11 w-full">
+          <SelectTrigger className="h-11 w-full" aria-label="หมวดงาน">
             <SelectValue placeholder="หมวดงาน" />
           </SelectTrigger>
           <SelectContent>
@@ -117,7 +105,7 @@ export function SearchClient({ allCategories, initialCategorySlug }: SearchClien
         </Select>
 
         <Select value={sort} onValueChange={setSort}>
-          <SelectTrigger className="h-11 w-full">
+          <SelectTrigger className="h-11 w-full" aria-label="เรียงตาม">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -129,7 +117,7 @@ export function SearchClient({ allCategories, initialCategorySlug }: SearchClien
         </Select>
 
         <Select value={minRating} onValueChange={setMinRating}>
-          <SelectTrigger className="h-11 w-full">
+          <SelectTrigger className="h-11 w-full" aria-label="คะแนนขั้นต่ำ">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -141,7 +129,7 @@ export function SearchClient({ allCategories, initialCategorySlug }: SearchClien
         </Select>
 
         <Select value={maxKm} onValueChange={setMaxKm}>
-          <SelectTrigger className="h-11 w-full">
+          <SelectTrigger className="h-11 w-full" aria-label="ระยะทางสูงสุด">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -169,6 +157,14 @@ export function SearchClient({ allCategories, initialCategorySlug }: SearchClien
         >
           <MapIcon className="size-4" /> แผนที่
         </Button>
+        <Button type="button" variant="outline" disabled={locating} onClick={useMyLocation}>
+          {locating ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <LocateFixed className="size-4" />
+          )}
+          ใช้ตำแหน่งของฉัน
+        </Button>
       </div>
 
       {loading ? (
@@ -187,7 +183,7 @@ export function SearchClient({ allCategories, initialCategorySlug }: SearchClien
             <ProviderCard key={r.id} provider={r} />
           ))}
         </div>
-      ) : location ? (
+      ) : (
         <ProviderMapLoader
           center={location}
           markers={results.map((r) => ({
@@ -197,7 +193,7 @@ export function SearchClient({ allCategories, initialCategorySlug }: SearchClien
             label: r.displayName,
           }))}
         />
-      ) : null}
+      )}
     </div>
   );
 }

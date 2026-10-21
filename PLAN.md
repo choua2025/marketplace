@@ -101,9 +101,11 @@ Production ยังใช้ Cloudflare R2/AWS S3 เหมือนเดิ�
   รูปแบบ เพราะ URL เป็น signed URL ที่เปลี่ยนทุกครั้ง (query string ใหม่ตลอด) การตั้ง remotePatterns ให้ตรง
   กับ domain ที่เปลี่ยนได้ตามสภาพแวดล้อม (dev=Garage, prod=R2/S3) ไม่คุ้มกับความซับซ้อน ไว้พิจารณาอีกครั้ง
   ตอน M8 ปรับ Lighthouse ถ้าจำเป็นต้องบีบขนาดภาพจริงจัง
-- **ตั้งค่าพิกัด search อ้างอิงจาก browser geolocation เสมอ** ไม่รับ lat/lng ผ่าน query param ของ `/search`
+- **ตั้งค่าพิกัด search อ้างอิงจาก browser geolocation** ไม่รับ lat/lng ผ่าน query param ของ `/search`
   (ถึงแม้ SPEC หัวข้อ 7.6 จะลิสต์ lat/lng เป็น parameter ของ service ก็ตาม — service ใช้งานแบบนั้นได้ แค่
-  UI ตอนนี้ไม่ได้ทำ bookmarkable URL) ถ้า browser ปฏิเสธ/ไม่รองรับ fallback เป็นจุดกลางกรุงเทพฯ
+  UI ตอนนี้ไม่ได้ทำ bookmarkable URL) **อัปเดตใน M8:** เดิมขอ permission geolocation ทันทีตอนเปิดหน้า
+  (Lighthouse ตีว่าเป็น best-practice violation -- `geolocation-on-start`) เปลี่ยนเป็นเริ่มที่จุดกลาง
+  กรุงเทพฯ ทันทีโดยไม่ขอ permission เลย แล้วมีปุ่ม "ใช้ตำแหน่งของฉัน" ให้กดขอ permission เองตอนต้องการ
 
 **เพิ่มจาก M5:**
 
@@ -177,6 +179,89 @@ Production ยังใช้ Cloudflare R2/AWS S3 เหมือนเดิ�
 - **หน้าเขียน/แก้ไขรีวิวอยู่ที่ `/bookings/[id]/review`** (ไม่แยก path สำหรับ "แก้ไข" ต่างหาก) หน้าเดียวกัน
   เช็คว่ามีรีวิวอยู่แล้วหรือยังผ่าน `getReviewForBooking` แล้วสลับ label ปุ่ม/หัวข้อให้เหมาะสม ตามแนวทาง
   เดียวกับหน้า booking detail ที่ใช้ URL เดียวกันทั้งสอง role
+
+**เพิ่มจาก M8:**
+
+- **`next-intl` ใช้ `localePrefix: "as-needed"`** (th = default ไม่มี prefix, en = `/en/...`) ทุก URL
+  ที่มีอยู่แล้วตั้งแต่ M1-M7 ยังใช้งานได้เหมือนเดิมสำหรับผู้ใช้ไทย ย้ายทุกหน้าเข้า `src/app/[locale]/`
+  โดย root layout เดิม (`src/app/layout.tsx`) หายไป กลายเป็น `[locale]/layout.tsx` แทน (ใส่ฟอนต์
+  Noto Sans Thai ผ่าน `next/font/google` ตามหัวข้อ 9 ที่ยังไม่เคยทำตั้งแต่ M0, ตั้ง `<html lang>` ตาม
+  locale จริง, เพิ่ม `NextIntlClientProvider`)
+- **`src/i18n/request.ts` ใช้ `requestLocale` (ของเดิม, ไม่ใช่ `next/root-params` ที่ docs ปัจจุบันแนะนำ)**
+  — ทดสอบจริงแล้วว่า `next/root-params` throw ทันทีถ้าถูกเรียกจากภายใน Server Action
+  (`"...was used inside a Server Action. This is not supported."`) ซึ่งตรงกับที่ `toActionResult`
+  (ใช้ทุก Server Action ในแอป) ต้องเรียก `getLocale()` เพื่อแปล error message — บั๊กนี้ไม่โชว์ตอน
+  happy-path เลยเพราะ action ที่ไม่ throw ไม่เคยเรียก `getLocale()`, เจอจริงครั้งแรกตอน Playwright E2E
+  ยิง `createBookingAction` จนชน `TOO_MANY_PENDING_BOOKINGS` ระหว่างทดสอบซ้ำหลายรอบ
+- **`toActionResult` แปล `AppError` เป็นข้อความ th/en จริงแล้ว** (เดิมตั้งแต่ M5 ส่ง error code ดิบๆ เช่น
+  "PROVIDER_UNAVAILABLE" ตรงๆให้ UI โชว์ เป็นช่องโหว่ UX ที่ไม่มีใครสังเกตมาตลอด M5-M7) ใช้
+  `translateErrorCode(code, locale)` ที่มีอยู่แล้วตั้งแต่ M0 แต่ไม่เคยถูกเรียกใช้จริงที่ไหนเลย
+- **สีหลัก/สีเน้นตาม SPEC หัวข้อ 9 ไม่เคยถูกเซ็ตจริงตั้งแต่ M0** — shadcn preset ที่ scaffold ไว้ใช้
+  เทาเข้ม/ดำเป็น `--primary` (ไม่ใช่ `#2563EB` ตามสเปก) แก้โดยตั้ง `--primary` เป็นน้ำเงินตามสเปกทั้ง
+  light/dark mode และเพิ่ม token ใหม่ `--brand-accent` (ส้ม `#F59E0B`) แยกจาก `--accent` เดิมของ shadcn
+  (ซึ่งใช้เป็นสี hover แบบจางๆทั่วแอปอยู่แล้ว เปลี่ยนความหมายจะทำให้ hover state ทุกจุดกลายเป็นส้มจัดไปด้วย)
+  ใช้ `bg-brand-accent` เฉพาะปุ่มจอง/ปุ่มสำคัญจริงๆ (ปุ่ม "จองงานกับช่างนี้" และปุ่ม "ส่งคำขอจอง")
+- **Dark mode ใช้ CSS variable `.dark` class ที่ shadcn preset สร้างไว้ให้ตั้งแต่ M0 อยู่แล้ว** (ไม่รู้ตัว
+  มาก่อนว่ามีครบ) งานจริงมีแค่เพิ่ม toggle (`theme-toggle.tsx`) ที่อ่าน/เซ็ต `localStorage` + inline
+  script ใน `<head>` ก่อน hydrate กัน flash สีผิด — คอมโพเนนต์ตัวนี้อ่าน `document.documentElement`
+  ตรงๆใน lazy initializer ของ `useState` แทนการใช้ `useEffect` + `setState` เพราะ ESLint
+  (`react-hooks/set-state-in-effect`) ของโปรเจกต์ไม่อนุญาตรูปแบบหลัง
+- **PWA icons สร้างด้วย `next/og`'s `ImageResponse`** (ไม่มีเครื่องมือออกแบบกราฟิกจริงในมือ) เป็นรูป
+  สี่เหลี่ยมพื้นน้ำเงิน ตัวอักษร "ช" สีส้ม ขนาด 192/512 -- ใช้ชั่วคราวจนกว่าจะมีโลโก้จริง
+- **Service worker เขียนมือ ไม่ใช้ `next-pwa`** (ไลบรารีนั้นไม่ได้อัปเดตรองรับ App Router/Next 16 อย่าง
+  เป็นทางการ) ทำแค่ตามที่สเปกขอ: cache `offline.html` ไว้ตอน install แล้ว fallback ไปหน้านั้นเมื่อ
+  navigation request fail เพราะไม่มีเน็ต ไม่ precache asset อื่นใด
+- **Security headers (CSP/X-Frame-Options/Referrer-Policy/Permissions-Policy) ย้ายจาก
+  `next.config.ts`'s `headers()` ไปอยู่ใน `src/proxy.ts` แทน** เพราะทดสอบจริงด้วย `docker build` +
+  `docker run` คนละค่า `S3_ENDPOINT` กันแล้วพบว่า `next.config.ts` คำนวณ CSP แค่ครั้งเดียวตอน build
+  (ค่า placeholder ที่ตั้งไว้ให้ build ผ่าน) ไม่ได้อ่านค่า runtime จริงที่ส่งมาตอน `docker run -e` เลย
+  — ย้ายไปคำนวณต่อ request ใน middleware แก้ปัญหานี้ และยืนยันด้วย container จริงว่า CSP เปลี่ยนตาม
+  env ที่ส่งเข้าไปตอน run ถูกต้อง
+- **CSP ต้องมี `'unsafe-eval'` เฉพาะตอน `NODE_ENV !== "production"`** React dev mode (Fast Refresh/error
+  overlay) ใช้ `eval()` จริง — เจอจาก Playwright เปิดหน้าแล้วเจอ Runtime Error เต็มจอทันทีตอนเพิ่ม CSP
+  เข้าไปใหม่ๆ, CSP ตอน production ไม่ใส่ `unsafe-eval` เหมือนเดิม
+- **หน้าแรกกับ `sitemap.ts` ต้องเป็น `export const dynamic = "force-dynamic"`** ทั้งสองไฟล์ query
+  ฐานข้อมูลตรงๆ (รายการหมวดงาน, รายชื่อช่าง active) ซึ่ง Next พยายาม static-generate ตอน build โดย
+  ค่าเริ่มต้น — ใช้งานได้ปกติตอน `pnpm build` บนเครื่อง dev เพราะ Postgres รันอยู่ แต่ `docker build`
+  ไม่มีฐานข้อมูลให้เชื่อมต่อ ทำให้ build fail จริง (ทดสอบแล้ว ไม่ใช่แค่คาดเดา)
+- **Dockerfile ต้อง copy `pnpm-workspace.yaml` เข้าไปด้วย** (ไม่ใช่แค่ `package.json`/`pnpm-lock.yaml`)
+  เพราะไฟล์นี้เก็บ `allowBuilds` ของแพ็กเกจที่มี native postinstall script (`@swc/core`,
+  `@parcel/watcher` ฯลฯ) — ไม่มีไฟล์นี้ `pnpm install --frozen-lockfile` จะ fail ด้วย
+  `ERR_PNPM_IGNORED_BUILDS` ข้าง container (ทดสอบจริงด้วย `docker build` จนรันสำเร็จ รวมถึงรัน
+  container จริงต่อกับ `docker compose` network แล้วเทียบ response กับ dev server)
+- **บั๊กจริงที่เจอจาก Playwright, ไม่เกี่ยวกับ M8 โดยตรง แต่ซ่อนมาตั้งแต่ M3/M4:** หน้าโปรไฟล์ช่างพัง
+  ทั้งหน้า (client-side Runtime Error หลัง hydrate) สำหรับช่างทุกคนที่มีพิกัด เพราะ import รูป marker
+  ของ Leaflet จาก `node_modules` ตรงๆ ได้ `iconUrl` เป็นค่าว่างภายใต้ Turbopack — ไม่มีใครเจอมาก่อนเพราะ
+  การตรวจสอบก่อนหน้านี้ใช้ `curl` ดู HTML จาก server เท่านั้น ซึ่งไม่รัน JS ฝั่ง client เลยจึงไม่เจอ
+  error ชนิดนี้ แก้โดย copy รูป marker 3 ไฟล์เข้า `public/leaflet/` แล้วอ้างเป็น static path ตรงๆแทน
+  การ import จาก package
+- **Playwright E2E: ต้องบังคับ `locale: "th-TH"` ตอนสร้าง browser context** อุปกรณ์จำลอง "Pixel 7"
+  (ตามที่สเปกต้องการ ขนาดจอมือถือ) มี default locale เป็น `en-US` ซึ่งทำให้ next-intl ตรวจจับแล้ว
+  redirect ทุกหน้าไปที่ `/en/...` โดยไม่ได้ตั้งใจ ยืนยันด้วยการดู URL จริงหลังล็อกอินที่ error context
+  ของ Playwright
+- **Better Auth จำกัดการเข้าสู่ระบบไว้ที่ 3 ครั้ง/10 วินาที/IP ให้ทุก path ที่ขึ้นต้นด้วย `/sign-in`
+  โดย default** (ไม่ใช่บั๊ก เป็น SPEC หัวข้อ 11 ที่ทำงานถูกต้อง) — รัน Flow A + Flow B ติดกันในชุด
+  ทดสอบเดียว (login รวม 4 ครั้งจากคนละบัญชี แต่ IP เดียวกัน) ชนขีดจำกัดนี้ได้จริง ตัวช่วย
+  `loginAsDevUser` ใน `tests/e2e/helpers.ts` จึงรอ 11 วิแล้วลองใหม่อัตโนมัติถ้าเจอ 429 (สูงสุด 5 ครั้ง)
+  และปรับ `playwright.config.ts`'s `timeout` เป็น 90 วิ ให้มีพื้นที่พอสำหรับการรอนี้
+- **ข้อความแชตในเทสต์ E2E ต้องมี nonce ต่อรอบ (`Date.now()`) ต่อท้าย** เพราะ Flow B รันกับฐานข้อมูล dev
+  จริงที่ไม่ได้ truncate ต่อเทสต์แบบ integration test รันซ้ำหลายรอบด้วยข้อความเดิมจะเจอ
+  strict-mode violation (ข้อความซ้ำหลายรายการ) ใน Playwright locator
+- **Lighthouse spot-check (production build, `next build` + `.next/standalone/server.js`, หน้า `/`
+  และ `/search`):** Accessibility 100 และ SEO 100 ทั้งสองหน้าทุกรอบที่รัน, Performance อยู่ในช่วง
+  82-92 ขึ้นอยู่กับโหลดของเครื่องตอนรัน (เครื่อง dev ถูกใช้ทดสอบหนักมากตลอด M8 ทำให้ตัวเลขแปรผันได้),
+  Best Practices ติดอยู่ที่ 81 จาก audit เดียวคือ `is-on-https` (รันทดสอบที่ `http://localhost` ไม่มี
+  TLS จริง) ซึ่งจะผ่านอัตโนมัติเมื่อ deploy จริงหลัง Nginx+TLS ตามที่ README อธิบายไว้ — ตรวจแล้วว่า
+  ไม่มี console error/404 เหลืออยู่จริง (เจอรอบแรกเพราะทดสอบจาก `node .next/standalone/server.js`
+  ตรงๆโดยไม่ copy `public/`กับ`.next/static/` เข้าไปด้วยตามที่ Dockerfile ทำจริง -- เป็นปัญหาของวิธี
+  ทดสอบเอง ไม่ใช่ของแอป) และเจอ `geolocation-on-start` จริง (ขอ permission ตำแหน่งทันทีตอนเปิดหน้า
+  ค้นหา) แก้แล้วด้วยการตั้งค่าเริ่มต้นเป็นกรุงเทพฯ กลางเมืองทันทีโดยไม่ขอ permission แล้วเพิ่มปุ่ม
+  "ใช้ตำแหน่งของฉัน" ให้กดขอเองตอนต้องการ
+- **ขอบเขตที่ตั้งใจไม่ทำให้ครบ 100% ในรอบนี้:** แปล UI เป็นอังกฤษแค่บางส่วน (nav bar, error message,
+  language switcher) — ข้อความส่วนใหญ่ในแต่ละหน้ายังเป็นภาษาไทยแข็งในโค้ด ไม่ได้ผ่าน
+  `useTranslations` ทุกจุด เพราะใช้เวลามากเทียบกับงาน infra (routing, dark mode, security headers,
+  PWA, Docker, E2E) ที่ยังไม่เคยมีเลยและมีความเสี่ยงสูงกว่าถ้าไม่เสร็จ — บันทึกไว้ใน
+  `docs/ARCHITECTURE.md`'s Known Limitations ด้วย
 
 ## Milestone Breakdown
 
