@@ -1,6 +1,7 @@
 import { env } from "@/server/lib/env";
 import type { SmsProvider } from "./provider";
 import { ConsoleSmsProvider } from "./console-provider";
+import { TwilioSmsProvider } from "./twilio-provider";
 
 export type { SmsProvider } from "./provider";
 
@@ -22,9 +23,18 @@ export function getSmsProvider(): SmsProvider {
   }
 
   if (env.NODE_ENV !== "development") {
-    // SPEC.md section 4: a real provider gets wired in here later. Fail
-    // loudly rather than silently pretending to send an SMS.
-    throw new Error("No production SmsProvider configured yet. See src/server/sms/provider.ts.");
+    if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_AUTH_TOKEN || !env.TWILIO_FROM) {
+      // Fail loudly rather than silently pretending to send an SMS.
+      throw new Error(
+        "SMS is not configured: set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM.",
+      );
+    }
+    provider = new TwilioSmsProvider({
+      accountSid: env.TWILIO_ACCOUNT_SID,
+      authToken: env.TWILIO_AUTH_TOKEN,
+      from: env.TWILIO_FROM,
+    });
+    return provider;
   }
 
   provider = new ConsoleSmsProvider();

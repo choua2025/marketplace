@@ -20,6 +20,11 @@ const envSchema = z.object({
   // .env.example ships these blank, so "" must count as unset too.
   GOOGLE_CLIENT_ID: emptyStringAsUndefined(z.string().min(1).optional()),
   GOOGLE_CLIENT_SECRET: emptyStringAsUndefined(z.string().min(1).optional()),
+  // Optional: production SMS OTP (Twilio). Phone login fails with a clear
+  // error in production until all three are set; dev uses the console provider.
+  TWILIO_ACCOUNT_SID: emptyStringAsUndefined(z.string().min(1).optional()),
+  TWILIO_AUTH_TOKEN: emptyStringAsUndefined(z.string().min(1).optional()),
+  TWILIO_FROM: emptyStringAsUndefined(z.string().min(1).optional()),
   // S3-compatible storage (Garage in dev, R2/S3 in prod -- SPEC.md section 4).
   S3_ENDPOINT: z.url(),
   S3_REGION: z.string().min(1),

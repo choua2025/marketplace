@@ -143,11 +143,16 @@ docker run -d --name changdee \
 PostgreSQL จริง (role สิทธิ์ต่ำ `changdee_app`, DML เท่านั้น) และ `S3_ENDPOINT`/`S3_*` ต้องชี้ไปที่
 Cloudflare R2, AWS S3 หรือ Garage ที่รันแยกไว้สำหรับ production
 
+ต้องตั้ง `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` ไม่เช่นนั้นล็อกอินด้วยเบอร์โทร/OTP
+จะใช้ไม่ได้ใน production, `BETTER_AUTH_SECRET` ต้องสุ่มใหม่ (`openssl rand -hex 32`), `APP_URL`/`BETTER_AUTH_URL`
+และ Google OAuth redirect URI ต้องเป็นโดเมนจริง และห้ามใช้ S3 key ของ Garage dev ใน `.env.example`
+ตรวจสถานะแอปได้ที่ `GET /api/health` (200 = ต่อ Postgres ได้)
+
 ค่า `BETTER_AUTH_SECRET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` ที่เห็นใน Dockerfile เป็นแค่
 placeholder สำหรับให้ `next build` ผ่าน schema validation เท่านั้น -- ค่าจริงมาจาก `--env-file` ตอน
 `docker run` เสมอ ไม่ได้ฝังอยู่ใน image
 
-### 2. Migration (รันครั้งเดียวก่อนเปิดใช้งาน หรือทุกครั้งที่ deploy เวอร์ชันใหม่)
+### 2. Migration (รันครั้งเดียวก่อนเปิดใช้งาน และ **ต้องรันก่อนทุกครั้งที่ deploy เวอร์ชันใหม่** -- ยังไม่ได้อยู่ใน pipeline อัตโนมัติ)
 
 รันจากเครื่องที่เข้าถึง `DATABASE_URL` (role เจ้าของ, สิทธิ์ DDL) ได้ -- ไม่ต้องรันจาก container ของแอป:
 
