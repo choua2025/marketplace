@@ -24,7 +24,8 @@
     "login": "เข้าสู่ระบบ",
     "register": "สมัครสมาชิก",
     "openMenu": "เปิดเมนู",
-    "language": "ภาษา"
+    "language": "ภาษา",
+    "unreadCount": "ยังไม่ได้อ่าน {count} ข้อความ"
   },
   "userMenu": {
     "roleCustomer": "ลูกค้า",
@@ -415,7 +416,9 @@
     "sendImage": "ส่งรูปภาพ",
     "placeholder": "พิมพ์ข้อความ...",
     "send": "ส่งข้อความ",
-    "imageAlt": "รูปภาพที่ส่งในแชต"
+    "imageAlt": "รูปภาพที่ส่งในแชต",
+    "statusSent": "ส่งแล้ว",
+    "statusRead": "อ่านแล้ว"
   },
   "weekdays": {
     "0": "อาทิตย์",

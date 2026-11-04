@@ -24,7 +24,8 @@
     "login": "Log in",
     "register": "Sign up",
     "openMenu": "Open menu",
-    "language": "Language"
+    "language": "Language",
+    "unreadCount": "{count, plural, one {# unread message} other {# unread messages}}"
   },
   "userMenu": {
     "roleCustomer": "Customer",
@@ -415,7 +416,9 @@
     "sendImage": "Send a photo",
     "placeholder": "Type a message...",
     "send": "Send message",
-    "imageAlt": "Photo sent in chat"
+    "imageAlt": "Photo sent in chat",
+    "statusSent": "Sent",
+    "statusRead": "Read"
   },
   "weekdays": {
     "0": "Sunday",

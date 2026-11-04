@@ -112,8 +112,8 @@ export async function getBookingDetail(actor: Actor | null, bookingId: string) {
     select: {
       ...bookingSelect,
       category: { select: { nameTh: true, nameEn: true } },
-      customer: { select: { fullName: true } },
-      provider: { select: { displayName: true } },
+      customer: { select: { fullName: true, avatarKey: true } },
+      provider: { select: { displayName: true, profile: { select: { avatarKey: true } } } },
     },
   });
 
@@ -125,6 +125,8 @@ export async function getBookingDetail(actor: Actor | null, bookingId: string) {
     categoryNameTh: category.nameTh,
     categoryNameEn: category.nameEn,
     customerName: customer.fullName,
+    customerAvatarKey: customer.avatarKey,
     providerDisplayName: provider.displayName,
+    providerAvatarKey: provider.profile.avatarKey,
   };
 }

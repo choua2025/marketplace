@@ -1,4 +1,4 @@
-import { PrismaPg } from "@prisma/adapter-pg";
+import { createPrismaAdapter } from "@/server/db/adapter";
 import { PrismaClient } from "@/server/db/generated/prisma/client";
 import { loadTestEnv } from "./load-test-env";
 
@@ -10,8 +10,8 @@ function requireEnv(name: string): string {
   return value;
 }
 
-const ownerAdapter = new PrismaPg({ connectionString: requireEnv("DATABASE_TEST_URL") });
-const appAdapter = new PrismaPg({ connectionString: requireEnv("DATABASE_TEST_APP_URL") });
+const ownerAdapter = createPrismaAdapter(requireEnv("DATABASE_TEST_URL"));
+const appAdapter = createPrismaAdapter(requireEnv("DATABASE_TEST_APP_URL"));
 
 // Owner role (DDL rights) -- test setup/teardown only, mirrors DATABASE_URL
 // in production tooling. Never used to exercise service-layer behavior.

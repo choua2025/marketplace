@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  ClipboardList,
-  Heart,
-  LayoutDashboard,
-  LogOut,
-  MessageCircle,
-  ShieldCheck,
-  UserPen,
-} from "lucide-react";
+import { Heart, LayoutDashboard, LogOut, ShieldCheck, UserPen } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth-client";
@@ -101,25 +93,12 @@ export function UserMenu({ fullName, role, avatarUrl }: UserMenuProps) {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/bookings">
-                <ClipboardList /> {t("myBookings")}
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
               <Link href="/favorites">
                 <Heart /> {t("myFavorites")}
               </Link>
             </DropdownMenuItem>
           </>
         )}
-
-        {role !== "admin" ? (
-          <DropdownMenuItem asChild>
-            <Link href="/messages">
-              <MessageCircle /> {t("messages")}
-            </Link>
-          </DropdownMenuItem>
-        ) : null}
 
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={handleLogout}>

@@ -24,7 +24,8 @@
     "login": "ເຂົ້າສູ່ລະບົບ",
     "register": "ສະໝັກສະມາຊິກ",
     "openMenu": "ເປີດເມນູ",
-    "language": "ພາສາ"
+    "language": "ພາສາ",
+    "unreadCount": "ຍັງບໍ່ໄດ້ອ່ານ {count} ຂໍ້ຄວາມ"
   },
   "userMenu": {
     "roleCustomer": "ລູກຄ້າ",
@@ -415,7 +416,9 @@
     "sendImage": "ສົ່ງຮູບພາບ",
     "placeholder": "ພິມຂໍ້ຄວາມ...",
     "send": "ສົ່ງຂໍ້ຄວາມ",
-    "imageAlt": "ຮູບພາບທີ່ສົ່ງໃນແຊັດ"
+    "imageAlt": "ຮູບພາບທີ່ສົ່ງໃນແຊັດ",
+    "statusSent": "ສົ່ງແລ້ວ",
+    "statusRead": "ອ່ານແລ້ວ"
   },
   "weekdays": {
     "0": "ອາທິດ",

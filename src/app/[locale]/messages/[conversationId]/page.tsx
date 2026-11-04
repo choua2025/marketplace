@@ -28,6 +28,7 @@ export default async function ConversationPage({
     throw error;
   }
 
+  const counterpartyAvatarUrl = await getSignedImageUrl(detail.counterpartyAvatarKey);
   const initialMessages = await Promise.all(
     page.items.map(async (item) => ({
       id: item.id,
@@ -45,6 +46,7 @@ export default async function ConversationPage({
       conversationId={conversationId}
       actorId={actor.id}
       counterpartyName={detail.counterpartyName}
+      counterpartyAvatarUrl={counterpartyAvatarUrl}
       initialMessages={initialMessages}
       initialNextCursor={page.nextCursor}
     />

@@ -10,6 +10,18 @@ import {
 import type { Actor } from "@/server/lib/actor";
 import { listMessagesSchema, MESSAGES_PAGE_SIZE } from "@/lib/validations/chat";
 
+/** Messages sent to `actor` that they haven't opened yet, across all their conversations. */
+export async function countUnreadMessages(actor: Actor | null): Promise<number> {
+  if (!actor) return 0;
+  return db.message.count({
+    where: {
+      senderId: { not: actor.id },
+      readAt: null,
+      conversation: { OR: [{ customerId: actor.id }, { providerId: actor.id }] },
+    },
+  });
+}
+
 /** Cursor-paginated message history (`id < cursor`, newest page first). */
 export async function listMessages(
   actor: Actor | null,
@@ -43,6 +55,7 @@ export interface ConversationListItemDto {
   id: string;
   counterpartyId: string;
   counterpartyName: string;
+  counterpartyAvatarKey: string | null;
   lastMessageAt: Date | null;
   lastMessagePreview: string | null;
   /** Last message is a photo with no text -- the UI shows a localized label. */
@@ -56,6 +69,8 @@ interface ConversationListRow {
   providerId: string;
   customerName: string;
   providerName: string;
+  customerAvatarKey: string | null;
+  providerAvatarKey: string | null;
   lastMessageAt: Date | null;
   lastMessagePreview: string | null;
   lastMessageIsImage: boolean;
@@ -79,6 +94,8 @@ export async function listConversations(actor: Actor | null): Promise<Conversati
       c."provider_id" AS "providerId",
       p."full_name" AS "customerName",
       pp."display_name" AS "providerName",
+      p."avatar_key" AS "customerAvatarKey",
+      ppp."avatar_key" AS "providerAvatarKey",
       c."last_message_at" AS "lastMessageAt",
       last."body" AS "lastMessagePreview",
       (last."id" IS NOT NULL AND last."body" IS NULL) AS "lastMessageIsImage",
@@ -91,6 +108,7 @@ export async function listConversations(actor: Actor | null): Promise<Conversati
     FROM "conversations" c
     INNER JOIN "profiles" p ON p."id" = c."customer_id"
     INNER JOIN "provider_profiles" pp ON pp."id" = c."provider_id"
+    INNER JOIN "profiles" ppp ON ppp."id" = c."provider_id"
     LEFT JOIN LATERAL (
       SELECT m."id", m."body" FROM "messages" m
       WHERE m."conversation_id" = c."id"
@@ -105,6 +123,8 @@ export async function listConversations(actor: Actor | null): Promise<Conversati
     id: row.id,
     counterpartyId: actor.id === row.customerId ? row.providerId : row.customerId,
     counterpartyName: actor.id === row.customerId ? row.providerName : row.customerName,
+    counterpartyAvatarKey:
+      actor.id === row.customerId ? row.providerAvatarKey : row.customerAvatarKey,
     lastMessageAt: row.lastMessageAt,
     lastMessagePreview: row.lastMessagePreview,
     lastMessageIsImage: row.lastMessageIsImage,
@@ -122,16 +142,17 @@ export async function getConversationDetail(actor: Actor | null, conversationId:
     select: {
       customerId: true,
       providerId: true,
-      customer: { select: { fullName: true } },
-      provider: { select: { displayName: true } },
+      customer: { select: { fullName: true, avatarKey: true } },
+      provider: { select: { displayName: true, profile: { select: { avatarKey: true } } } },
     },
   });
 
   if (!row) throw new AppError("NOT_FOUND");
 
+  const isCustomer = actor.id === row.customerId;
   return {
-    counterpartyId: actor.id === row.customerId ? row.providerId : row.customerId,
-    counterpartyName:
-      actor.id === row.customerId ? row.provider.displayName : row.customer.fullName,
+    counterpartyId: isCustomer ? row.providerId : row.customerId,
+    counterpartyName: isCustomer ? row.provider.displayName : row.customer.fullName,
+    counterpartyAvatarKey: isCustomer ? row.provider.profile.avatarKey : row.customer.avatarKey,
   };
 }

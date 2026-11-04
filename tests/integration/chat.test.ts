@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { markConversationRead, sendMessage, startConversation } from "@/server/services/chat";
 import {
+  countUnreadMessages,
   getConversationDetail,
   listConversations,
   listMessages,
@@ -209,6 +210,29 @@ describe("listMessages / listConversations / markConversationRead", () => {
     await markConversationRead(customer, conversation.id);
     const after = await listConversations(customer);
     expect(after[0]?.unreadCount).toBe(0);
+  });
+
+  it("countUnreadMessages totals unread messages from others across conversations", async () => {
+    const customer = await createCustomerFixture("cust1");
+    const providerA = await createProviderFixture("prov1");
+    const providerB = await createProviderFixture("prov2");
+    const outsider = await createCustomerFixture("cust2");
+    const convA = await startConversation(customer, { providerId: providerA.id });
+    const convB = await startConversation(customer, { providerId: providerB.id });
+    const otherConv = await startConversation(outsider, { providerId: providerA.id });
+
+    await sendMessage(providerA, convA.id, { body: "a1" });
+    await sendMessage(providerA, convA.id, { body: "a2" });
+    await sendMessage(providerB, convB.id, { body: "b1" });
+    await sendMessage(customer, convA.id, { body: "own message, never unread" });
+    await sendMessage(providerA, otherConv.id, { body: "someone else's chat" });
+
+    expect(await countUnreadMessages(customer)).toBe(3);
+    expect(await countUnreadMessages(providerA)).toBe(1);
+    expect(await countUnreadMessages(null)).toBe(0);
+
+    await markConversationRead(customer, convA.id);
+    expect(await countUnreadMessages(customer)).toBe(1);
   });
 
   it("getConversationDetail resolves the counterparty for each side", async () => {
