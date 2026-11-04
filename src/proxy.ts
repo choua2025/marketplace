@@ -4,15 +4,13 @@ import { routing } from "./i18n/routing";
 
 const intlMiddleware = createMiddleware(routing);
 
-/**
- * Security headers (SPEC.md section 11). Computed per-request rather than
- * in next.config.ts's `headers()` because the storage origin (S3/Garage/R2)
- * can differ between build time and run time -- e.g. in Docker, where the
- * image is built once but configured with real env vars at `docker run`.
- */
-function withSecurityHeaders(response: NextResponse): NextResponse {
-  const storageOrigin = process.env.S3_ENDPOINT ? new URL(process.env.S3_ENDPOINT).origin : "";
+// Cloudinary: res. serves signed CDN images, api. receives browser uploads
+// and serves expiring private-file URLs.
+const STORAGE_IMG_SRC = "https://res.cloudinary.com https://api.cloudinary.com";
+const STORAGE_CONNECT_SRC = "https://api.cloudinary.com";
 
+/** Security headers (SPEC.md section 11). */
+function withSecurityHeaders(response: NextResponse): NextResponse {
   // React dev mode (Fast Refresh, error overlay) uses eval() -- allow it
   // only outside production so the CSP doesn't break `next dev`/Turbopack.
   const scriptSrc =
@@ -22,8 +20,13 @@ function withSecurityHeaders(response: NextResponse): NextResponse {
 
   const csp = [
     "default-src 'self'",
-    `img-src 'self' data: ${storageOrigin}`,
-    `connect-src 'self' ${storageOrigin}`,
+    // blob: is for client-side local previews of not-yet-uploaded files
+    // (e.g. the provider verification form, which batches several
+    // documents before a single final submit) -- scoped to the page that
+    // created it, never a network fetch.
+    // tile.openstreetmap.org serves the Leaflet map tiles (a/b/c subdomains).
+    `img-src 'self' data: blob: https://*.tile.openstreetmap.org ${STORAGE_IMG_SRC}`,
+    `connect-src 'self' ${STORAGE_CONNECT_SRC}`,
     // The inline theme script and JSON-LD <script> tags need
     // 'unsafe-inline' since there's no per-request nonce wired up here --
     // see PLAN.md.

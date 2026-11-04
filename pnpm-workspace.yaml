@@ -4,6 +4,8 @@ allowBuilds:
   esbuild: true
   "@parcel/watcher": true
   "@swc/core": true
+  "@prisma/engines": true
+  prisma: true
 minimumReleaseAgeExclude:
   - "@better-auth/core@1.7.12"
   - "@better-auth/drizzle-adapter@1.7.12"

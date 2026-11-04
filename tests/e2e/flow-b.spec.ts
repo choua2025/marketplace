@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { bookableSlot, loginAsDevUser } from "./helpers";
+import { SEED_IDS } from "../../src/server/db/seed-ids";
 
 const PROVIDER2_LOCATION = { latitude: 13.6672, longitude: 100.6039 };
 const CUSTOMER2_NAME = "วิชัย รักเรียน";
@@ -32,7 +33,7 @@ test("provider sees new request, chats in real-time, confirms/starts/completes",
   await loginAsDevUser(customerPage, "customer2@changdee.test");
 
   // Customer creates a booking request for provider2.
-  await customerPage.goto("/book/seed_provider_2");
+  await customerPage.goto(`/book/${SEED_IDS.provider(2)}`);
   await customerPage.getByLabel("วันเวลาเริ่มงาน").fill(bookableSlot(2, 10));
   await customerPage.getByLabel("ถึงเวลา").fill(bookableSlot(2, 11));
   await customerPage.getByLabel("อธิบายปัญหา").fill("ไฟในบ้านดับบ่อย อยากให้ช่างมาตรวจระบบไฟ");
@@ -43,7 +44,7 @@ test("provider sees new request, chats in real-time, confirms/starts/completes",
   expect(bookingId).toBeTruthy();
 
   // Customer starts a chat with the provider and sends the first message.
-  await customerPage.goto("/p/seed_provider_2");
+  await customerPage.goto(`/p/${SEED_IDS.provider(2)}`);
   await customerPage.getByRole("button", { name: "แชทกับช่างนี้" }).click();
   await customerPage.waitForURL("**/messages/*");
   await customerPage.getByPlaceholder("พิมพ์ข้อความ...").fill(customerMessage);

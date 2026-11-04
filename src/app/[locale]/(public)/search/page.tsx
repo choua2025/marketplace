@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { listCategories } from "@/server/services/category";
 import { SearchClient } from "@/components/search/search-client";
 
@@ -6,12 +7,17 @@ export default async function SearchPage({
 }: {
   searchParams: Promise<{ category?: string }>;
 }) {
-  const { category } = await searchParams;
-  const categories = await listCategories(null);
+  const [{ category }, categories, t] = await Promise.all([
+    searchParams,
+    listCategories(null),
+    getTranslations("search"),
+  ]);
 
   return (
-    <main className="mx-auto flex max-w-2xl flex-col gap-4 p-4">
-      <h1 className="text-2xl font-bold">ค้นหาช่าง</h1>
+    // Desktop: exactly the viewport below the 4rem (h-16) sticky site header,
+    // so the title and filters stay in place and only the results scroll.
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4 lg:h-[calc(100dvh-4rem)] lg:overflow-hidden">
+      <h1 className="text-2xl font-bold">{t("title")}</h1>
       <SearchClient allCategories={categories} initialCategorySlug={category} />
     </main>
   );

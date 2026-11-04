@@ -1,29 +1,20 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
 import { createReview, getReviewForBooking, updateReview } from "@/server/services/review";
 import type { Actor } from "@/server/lib/actor";
-import {
-  bookings,
-  categories,
-  profiles,
-  providerProfiles,
-  reviews,
-  user,
-} from "@/server/db/schema";
 import { resetTestDatabase, testOwnerDb } from "../helpers/db";
 
 async function createCustomer(id: string): Promise<Actor> {
-  await testOwnerDb.insert(user).values({ id, name: id, email: `${id}@test.local` });
-  await testOwnerDb.insert(profiles).values({ id, role: "customer", fullName: id });
+  await testOwnerDb.user.create({ data: { id, name: id, email: `${id}@test.local` } });
+  await testOwnerDb.profile.create({ data: { id, role: "customer", fullName: id } });
   return { id, role: "customer" };
 }
 
 async function createProvider(id: string): Promise<Actor> {
-  await testOwnerDb.insert(user).values({ id, name: id, email: `${id}@test.local` });
-  await testOwnerDb.insert(profiles).values({ id, role: "provider", fullName: id });
-  await testOwnerDb
-    .insert(providerProfiles)
-    .values({ id, displayName: id, isActive: true, latitude: "13.75", longitude: "100.50" });
+  await testOwnerDb.user.create({ data: { id, name: id, email: `${id}@test.local` } });
+  await testOwnerDb.profile.create({ data: { id, role: "provider", fullName: id } });
+  await testOwnerDb.providerProfile.create({
+    data: { id, displayName: id, isActive: true, latitude: "13.75", longitude: "100.50" },
+  });
   return { id, role: "provider" };
 }
 
@@ -35,9 +26,8 @@ async function createBookingFixture(
   options: { status?: "pending" | "completed"; completedAt?: Date } = {},
 ) {
   const { status = "completed", completedAt = new Date() } = options;
-  const [booking] = await testOwnerDb
-    .insert(bookings)
-    .values({
+  const booking = await testOwnerDb.booking.create({
+    data: {
       customerId,
       providerId,
       categoryId,
@@ -47,19 +37,19 @@ async function createBookingFixture(
       description: "ทดสอบรีวิวสำหรับ integration test",
       address: "123 ถนนทดสอบ กรุงเทพฯ",
       completedAt: status === "completed" ? completedAt : null,
-    })
-    .returning({ id: bookings.id });
-  if (!booking) throw new Error("failed to insert booking fixture");
+    },
+    select: { id: true },
+  });
   return booking.id;
 }
 
 beforeEach(async () => {
   await resetTestDatabase();
-  const [category] = await testOwnerDb
-    .insert(categories)
-    .values({ slug: "electrician", nameTh: "ช่างไฟฟ้า", nameEn: "Electrician", icon: "zap" })
-    .returning({ id: categories.id });
-  categoryId = category!.id;
+  const category = await testOwnerDb.category.create({
+    data: { slug: "electrician", nameTh: "ช่างไฟฟ้า", nameEn: "Electrician", icon: "zap" },
+    select: { id: true },
+  });
+  categoryId = category.id;
 });
 
 describe("createReview", () => {
@@ -132,10 +122,10 @@ describe("createReview", () => {
     await createReview(customerA, { bookingId: bookingA, rating: 5 });
     await createReview(customerB, { bookingId: bookingB, rating: 3 });
 
-    const [row] = await testOwnerDb
-      .select({ ratingAvg: providerProfiles.ratingAvg, ratingCount: providerProfiles.ratingCount })
-      .from(providerProfiles)
-      .where(eq(providerProfiles.id, provider.id));
+    const row = await testOwnerDb.providerProfile.findUnique({
+      where: { id: provider.id },
+      select: { ratingAvg: true, ratingCount: true },
+    });
 
     expect(row?.ratingCount).toBe(2);
     expect(Number(row?.ratingAvg)).toBe(4);
@@ -151,10 +141,10 @@ describe("updateReview", () => {
 
     await updateReview(customer, review.id, { rating: 5, comment: "แก้ไขแล้ว" });
 
-    const [row] = await testOwnerDb
-      .select({ ratingAvg: providerProfiles.ratingAvg })
-      .from(providerProfiles)
-      .where(eq(providerProfiles.id, provider.id));
+    const row = await testOwnerDb.providerProfile.findUnique({
+      where: { id: provider.id },
+      select: { ratingAvg: true },
+    });
     expect(Number(row?.ratingAvg)).toBe(5);
   });
 
@@ -176,10 +166,10 @@ describe("updateReview", () => {
     const bookingId = await createBookingFixture(customer.id, provider.id);
     const review = await createReview(customer, { bookingId, rating: 4 });
 
-    await testOwnerDb
-      .update(reviews)
-      .set({ createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000) })
-      .where(eq(reviews.id, review.id));
+    await testOwnerDb.review.update({
+      where: { id: review.id },
+      data: { createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000) },
+    });
 
     await expect(updateReview(customer, review.id, { rating: 1 })).rejects.toMatchObject({
       code: "REVIEW_EDIT_WINDOW_EXPIRED",

@@ -52,7 +52,7 @@
 | Framework           | Next.js (App Router, เวอร์ชันเสถียรล่าสุด) + TypeScript แบบ strict                                                               |
 | UI                  | Tailwind CSS + shadcn/ui + lucide-react                                                                                          |
 | ฐานข้อมูล           | **PostgreSQL 16** (ไม่ใช้ Supabase) รันด้วย Docker Compose                                                                       |
-| ORM / Migration     | Drizzle ORM + drizzle-kit (ใช้ custom SQL migration สำหรับ constraint และ trigger ที่ ORM ทำไม่ได้)                              |
+| ORM / Migration     | Prisma ORM + Prisma Migrate (ใช้ custom SQL migration สำหรับ constraint และ trigger ที่ ORM ทำไม่ได้)                            |
 | Authentication      | Better Auth พร้อม plugin เบอร์โทร/OTP และ Google OAuth เก็บ session ใน PostgreSQL                                                |
 | SMS OTP             | สร้าง interface `SmsProvider` โหมด dev ให้พิมพ์ OTP ลง console ส่วน production เสียบผู้ให้บริการจริงภายหลัง                      |
 | Real-time แชต       | Server-Sent Events (SSE) + PostgreSQL `LISTEN/NOTIFY` (ไม่ต้องมี service เพิ่ม)                                                  |
@@ -74,13 +74,13 @@ UI (Server/Client Components)
    ↓ เรียกผ่าน Server Actions หรือ Route Handlers เท่านั้น
 Service Layer  src/server/services/*.ts   ← ตรวจสิทธิ์ + business rules ทุกอย่างอยู่ที่นี่
    ↓
-Repository / Drizzle  src/server/db/*
+Repository / Prisma  src/server/db/*
    ↓
 PostgreSQL  ← ชั้นสุดท้าย: constraint, exclusion, trigger กันข้อมูลผิดแม้โค้ดมีบั๊ก
 ```
 
 1. **ทุก service function รับ `actor`** (ผู้ใช้จาก session หรือ `null` สำหรับผู้เยี่ยมชม) เป็นพารามิเตอร์แรก และตรวจสิทธิ์ก่อนทำงานทุกครั้ง
-2. **ห้าม import Drizzle client ใน component หรือ page โดยตรง** ให้เรียกผ่าน service เท่านั้น ตั้ง ESLint rule (`no-restricted-imports`) บังคับเรื่องนี้
+2. **ห้าม import Prisma client ใน component หรือ page โดยตรง** ให้เรียกผ่าน service เท่านั้น ตั้ง ESLint rule (`no-restricted-imports`) บังคับเรื่องนี้
 3. **ห้ามรับค่าที่ระบบต้องกำหนดเองจาก client** เช่น `customerId`, `senderId`, `providerId` ของรีวิว, `status`, `rating_avg`, `role` ให้ service ใส่ค่าเหล่านี้จาก session หรือจากฐานข้อมูลเสมอ
 4. **ข้อมูลที่ส่งออกไปหน้าเว็บต้องผ่าน DTO** ที่เลือกเฉพาะฟิลด์ที่อนุญาต ห้ามส่ง row ดิบจากฐานข้อมูล
 5. **Error มาตรฐาน:** สร้าง class `AppError(code, httpStatus)` ใช้รหัสตามหัวข้อ 7 และแปลงเป็นข้อความไทย/อังกฤษในไฟล์ภาษา
@@ -230,7 +230,7 @@ pending ──(ช่าง)──▶ confirmed ──(ช่าง)──▶ in
 ## 11. Security Checklist (ต้องผ่านทุกข้อ)
 
 - [ ] ตรวจ input ด้วย Zod ที่ server ทุกจุด แม้ client ตรวจแล้ว
-- [ ] Query ทุกตัวผ่าน Drizzle/parameterized ห้ามต่อ string เป็น SQL
+- [ ] Query ทุกตัวผ่าน Prisma/parameterized ห้ามต่อ string เป็น SQL
 - [ ] Server Actions และ Route Handlers ตรวจ session และสิทธิ์ทุกตัว
 - [ ] Cookie ของ session เป็น `httpOnly`, `secure`, `sameSite=lax`
 - [ ] Rate limit: ขอ OTP (3 ครั้ง/10 นาที/เบอร์ และ 10 ครั้ง/ชั่วโมง/IP), เข้าสู่ระบบ, สร้างการจอง, ส่งข้อความ

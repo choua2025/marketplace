@@ -1,15 +1,8 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import {
-  availabilityRules,
-  categories,
-  portfolioItems,
-  profiles,
-  providerCategories,
-  providerProfiles,
-} from "@/server/db/schema";
+import { Prisma } from "@/server/db/generated/prisma/client";
 import { AppError } from "@/server/lib/errors";
 import type { Actor } from "@/server/lib/actor";
+import { dateToTimeString, timeStringToDate } from "@/server/lib/pg-time";
 import {
   setAvailabilityRulesSchema,
   setProviderCategoriesSchema,
@@ -39,22 +32,41 @@ export interface ProviderProfileDto {
   completedJobs: number;
 }
 
-const providerProfileColumns = {
-  id: providerProfiles.id,
-  displayName: providerProfiles.displayName,
-  bio: providerProfiles.bio,
-  basePrice: providerProfiles.basePrice,
-  priceUnit: providerProfiles.priceUnit,
-  latitude: providerProfiles.latitude,
-  longitude: providerProfiles.longitude,
-  areaLabel: providerProfiles.areaLabel,
-  serviceRadiusKm: providerProfiles.serviceRadiusKm,
-  isActive: providerProfiles.isActive,
-  isVerified: providerProfiles.isVerified,
-  ratingAvg: providerProfiles.ratingAvg,
-  ratingCount: providerProfiles.ratingCount,
-  completedJobs: providerProfiles.completedJobs,
-};
+const providerProfileSelect = {
+  id: true,
+  displayName: true,
+  bio: true,
+  basePrice: true,
+  priceUnit: true,
+  latitude: true,
+  longitude: true,
+  areaLabel: true,
+  serviceRadiusKm: true,
+  isActive: true,
+  isVerified: true,
+  ratingAvg: true,
+  ratingCount: true,
+  completedJobs: true,
+} satisfies Prisma.ProviderProfileSelect;
+
+type ProviderProfileRow = Prisma.ProviderProfileGetPayload<{
+  select: typeof providerProfileSelect;
+}>;
+
+/** basePrice/latitude/longitude/ratingAvg come back as Prisma Decimal -- the
+ * rest of the app (DTOs, forms) works with the fixed-scale strings Postgres
+ * returns, same as the previous Drizzle `numeric` columns did -- `toFixed`,
+ * not `toString`, since Decimal normalizes away trailing zeros (e.g.
+ * "1200" instead of "1200.00"). */
+function toProviderProfileDto(row: ProviderProfileRow): ProviderProfileDto {
+  return {
+    ...row,
+    basePrice: row.basePrice.toFixed(2),
+    latitude: row.latitude?.toFixed(6) ?? null,
+    longitude: row.longitude?.toFixed(6) ?? null,
+    ratingAvg: row.ratingAvg.toFixed(2),
+  };
+}
 
 export async function updateProviderProfile(
   actor: Actor | null,
@@ -64,24 +76,29 @@ export async function updateProviderProfile(
   const parsed = updateProviderProfileSchema.parse(input);
   const hasLocation = parsed.latitude !== undefined;
 
-  const [updated] = await db
-    .update(providerProfiles)
-    .set({
-      displayName: parsed.displayName,
-      bio: parsed.bio ?? null,
-      basePrice: parsed.basePrice.toFixed(2),
-      priceUnit: parsed.priceUnit,
-      areaLabel: parsed.areaLabel ?? null,
-      latitude: hasLocation ? parsed.latitude?.toFixed(6) : null,
-      longitude: hasLocation ? parsed.longitude?.toFixed(6) : null,
-      serviceRadiusKm: parsed.serviceRadiusKm,
-      isActive: parsed.isActive,
-    })
-    .where(eq(providerProfiles.id, provider.id))
-    .returning(providerProfileColumns);
-
-  if (!updated) throw new AppError("NOT_FOUND");
-  return updated;
+  try {
+    const updated = await db.providerProfile.update({
+      where: { id: provider.id },
+      data: {
+        displayName: parsed.displayName,
+        bio: parsed.bio ?? null,
+        basePrice: parsed.basePrice.toFixed(2),
+        priceUnit: parsed.priceUnit,
+        areaLabel: parsed.areaLabel ?? null,
+        latitude: hasLocation ? parsed.latitude?.toFixed(6) : null,
+        longitude: hasLocation ? parsed.longitude?.toFixed(6) : null,
+        serviceRadiusKm: parsed.serviceRadiusKm,
+        isActive: parsed.isActive,
+      },
+      select: providerProfileSelect,
+    });
+    return toProviderProfileDto(updated);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      throw new AppError("NOT_FOUND");
+    }
+    throw error;
+  }
 }
 
 export async function setProviderCategories(
@@ -91,21 +108,21 @@ export async function setProviderCategories(
   const provider = assertProvider(actor);
   const { categorySlugs } = setProviderCategoriesSchema.parse(input);
 
-  const matched = await db
-    .select({ id: categories.id, slug: categories.slug })
-    .from(categories)
-    .where(inArray(categories.slug, categorySlugs));
+  const matched = await db.category.findMany({
+    where: { slug: { in: categorySlugs } },
+    select: { id: true, slug: true },
+  });
 
   if (matched.length !== categorySlugs.length) {
     throw new AppError("VALIDATION_ERROR", "One or more categories don't exist.");
   }
 
-  await db.transaction(async (tx) => {
-    await tx.delete(providerCategories).where(eq(providerCategories.providerId, provider.id));
-    await tx
-      .insert(providerCategories)
-      .values(matched.map((c) => ({ providerId: provider.id, categoryId: c.id })));
-  });
+  await db.$transaction([
+    db.providerCategory.deleteMany({ where: { providerId: provider.id } }),
+    db.providerCategory.createMany({
+      data: matched.map((c) => ({ providerId: provider.id, categoryId: c.id })),
+    }),
+  ]);
 
   return matched.map((c) => c.slug);
 }
@@ -132,17 +149,17 @@ export async function setAvailabilityRules(
     seen.add(key);
   }
 
-  await db.transaction(async (tx) => {
-    await tx.delete(availabilityRules).where(eq(availabilityRules.providerId, provider.id));
+  await db.$transaction(async (tx) => {
+    await tx.availabilityRule.deleteMany({ where: { providerId: provider.id } });
     if (rules.length > 0) {
-      await tx.insert(availabilityRules).values(
-        rules.map((r) => ({
+      await tx.availabilityRule.createMany({
+        data: rules.map((r) => ({
           providerId: provider.id,
           weekday: r.weekday,
-          startTime: r.startTime,
-          endTime: r.endTime,
+          startTime: timeStringToDate(r.startTime),
+          endTime: timeStringToDate(r.endTime),
         })),
-      );
+      });
     }
   });
 
@@ -168,49 +185,43 @@ export interface ProviderDashboardDto {
 export async function getMyProviderDashboard(actor: Actor | null): Promise<ProviderDashboardDto> {
   const provider = assertProvider(actor);
 
-  const [profile] = await db
-    .select(providerProfileColumns)
-    .from(providerProfiles)
-    .where(eq(providerProfiles.id, provider.id));
+  const profile = await db.providerProfile.findUnique({
+    where: { id: provider.id },
+    select: providerProfileSelect,
+  });
   if (!profile) throw new AppError("NOT_FOUND");
 
-  const [ownProfile] = await db
-    .select({ avatarKey: profiles.avatarKey })
-    .from(profiles)
-    .where(eq(profiles.id, provider.id));
+  const ownProfile = await db.profile.findUnique({
+    where: { id: provider.id },
+    select: { avatarKey: true },
+  });
 
-  const categoryRows = await db
-    .select({ slug: categories.slug })
-    .from(providerCategories)
-    .innerJoin(categories, eq(providerCategories.categoryId, categories.id))
-    .where(eq(providerCategories.providerId, provider.id));
+  const categoryRows = await db.providerCategory.findMany({
+    where: { providerId: provider.id },
+    select: { category: { select: { slug: true } } },
+  });
 
-  const availability = await db
-    .select({
-      weekday: availabilityRules.weekday,
-      startTime: availabilityRules.startTime,
-      endTime: availabilityRules.endTime,
-    })
-    .from(availabilityRules)
-    .where(eq(availabilityRules.providerId, provider.id))
-    .orderBy(asc(availabilityRules.weekday), asc(availabilityRules.startTime));
+  const availabilityRows = await db.availabilityRule.findMany({
+    where: { providerId: provider.id },
+    select: { weekday: true, startTime: true, endTime: true },
+    orderBy: [{ weekday: "asc" }, { startTime: "asc" }],
+  });
 
-  const portfolio = await db
-    .select({
-      id: portfolioItems.id,
-      imageKey: portfolioItems.imageKey,
-      caption: portfolioItems.caption,
-      sortOrder: portfolioItems.sortOrder,
-    })
-    .from(portfolioItems)
-    .where(eq(portfolioItems.providerId, provider.id))
-    .orderBy(asc(portfolioItems.sortOrder));
+  const portfolio = await db.portfolioItem.findMany({
+    where: { providerId: provider.id },
+    select: { id: true, imageKey: true, caption: true, sortOrder: true },
+    orderBy: { sortOrder: "asc" },
+  });
 
   return {
-    profile,
+    profile: toProviderProfileDto(profile),
     avatarKey: ownProfile?.avatarKey ?? null,
-    categorySlugs: categoryRows.map((c) => c.slug),
-    availability,
+    categorySlugs: categoryRows.map((c) => c.category.slug),
+    availability: availabilityRows.map((rule) => ({
+      weekday: rule.weekday,
+      startTime: dateToTimeString(rule.startTime),
+      endTime: dateToTimeString(rule.endTime),
+    })),
     portfolio,
   };
 }
@@ -229,7 +240,7 @@ export type PublicProviderProfileDto = {
   ratingAvg: string;
   ratingCount: number;
   completedJobs: number;
-  categories: { slug: string; nameTh: string; icon: string }[];
+  categories: { slug: string; nameTh: string; nameEn: string; icon: string }[];
   portfolio: PortfolioItemDto[];
   availability: AvailabilityRuleDto[];
 };
@@ -244,59 +255,67 @@ export async function getPublicProviderProfile(
   _actor: Actor | null,
   providerId: string,
 ): Promise<PublicProviderProfileDto> {
-  const [row] = await db
-    .select({
-      id: providerProfiles.id,
-      displayName: providerProfiles.displayName,
-      bio: providerProfiles.bio,
-      avatarKey: profiles.avatarKey,
-      basePrice: providerProfiles.basePrice,
-      priceUnit: providerProfiles.priceUnit,
-      areaLabel: providerProfiles.areaLabel,
-      latitude: sql<number | null>`ROUND(${providerProfiles.latitude}::numeric, 3)::float8`,
-      longitude: sql<number | null>`ROUND(${providerProfiles.longitude}::numeric, 3)::float8`,
-      isVerified: providerProfiles.isVerified,
-      ratingAvg: providerProfiles.ratingAvg,
-      ratingCount: providerProfiles.ratingCount,
-      completedJobs: providerProfiles.completedJobs,
-    })
-    .from(providerProfiles)
-    .innerJoin(profiles, eq(profiles.id, providerProfiles.id))
-    .where(and(eq(providerProfiles.id, providerId), eq(providerProfiles.isActive, true)));
+  const row = await db.providerProfile.findFirst({
+    where: { id: providerId, isActive: true },
+    select: {
+      id: true,
+      displayName: true,
+      bio: true,
+      profile: { select: { avatarKey: true } },
+      basePrice: true,
+      priceUnit: true,
+      areaLabel: true,
+      latitude: true,
+      longitude: true,
+      isVerified: true,
+      ratingAvg: true,
+      ratingCount: true,
+      completedJobs: true,
+    },
+  });
 
   if (!row) throw new AppError("NOT_FOUND");
 
-  const categoryRows = await db
-    .select({ slug: categories.slug, nameTh: categories.nameTh, icon: categories.icon })
-    .from(providerCategories)
-    .innerJoin(categories, eq(providerCategories.categoryId, categories.id))
-    .where(eq(providerCategories.providerId, providerId));
+  const categoryRows = await db.providerCategory.findMany({
+    where: { providerId },
+    select: { category: { select: { slug: true, nameTh: true, nameEn: true, icon: true } } },
+  });
 
-  const portfolio = await db
-    .select({
-      id: portfolioItems.id,
-      imageKey: portfolioItems.imageKey,
-      caption: portfolioItems.caption,
-      sortOrder: portfolioItems.sortOrder,
-    })
-    .from(portfolioItems)
-    .where(eq(portfolioItems.providerId, providerId))
-    .orderBy(asc(portfolioItems.sortOrder));
+  const portfolio = await db.portfolioItem.findMany({
+    where: { providerId },
+    select: { id: true, imageKey: true, caption: true, sortOrder: true },
+    orderBy: { sortOrder: "asc" },
+  });
 
-  const availability = await db
-    .select({
-      weekday: availabilityRules.weekday,
-      startTime: availabilityRules.startTime,
-      endTime: availabilityRules.endTime,
-    })
-    .from(availabilityRules)
-    .where(eq(availabilityRules.providerId, providerId))
-    .orderBy(asc(availabilityRules.weekday), asc(availabilityRules.startTime));
+  const availabilityRows = await db.availabilityRule.findMany({
+    where: { providerId },
+    select: { weekday: true, startTime: true, endTime: true },
+    orderBy: [{ weekday: "asc" }, { startTime: "asc" }],
+  });
+
+  const round3 = (value: Prisma.Decimal | null) =>
+    value === null ? null : Number(value.toFixed(3));
 
   return {
-    ...row,
-    categories: categoryRows,
+    id: row.id,
+    displayName: row.displayName,
+    bio: row.bio,
+    avatarKey: row.profile.avatarKey,
+    basePrice: row.basePrice.toFixed(2),
+    priceUnit: row.priceUnit,
+    areaLabel: row.areaLabel,
+    latitude: round3(row.latitude),
+    longitude: round3(row.longitude),
+    isVerified: row.isVerified,
+    ratingAvg: row.ratingAvg.toFixed(2),
+    ratingCount: row.ratingCount,
+    completedJobs: row.completedJobs,
+    categories: categoryRows.map((c) => c.category),
     portfolio,
-    availability,
+    availability: availabilityRows.map((rule) => ({
+      weekday: rule.weekday,
+      startTime: dateToTimeString(rule.startTime),
+      endTime: dateToTimeString(rule.endTime),
+    })),
   };
 }

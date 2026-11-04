@@ -51,6 +51,11 @@
 }
 
 :root {
+  /* next/font vars set on <html> in src/app/[locale]/layout.tsx. Stacked so
+     the browser picks glyphs per character -- Thai text renders via Noto
+     Sans Thai, Lao via Noto Sans Lao, everything else via the system stack. */
+  --font-sans:
+    var(--font-noto-sans-thai), var(--font-noto-sans-lao), ui-sans-serif, system-ui, sans-serif;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);

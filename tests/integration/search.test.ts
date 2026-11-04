@@ -1,14 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
 import { searchProviders } from "@/server/services/search";
 import { getPublicProviderProfile } from "@/server/services/provider";
-import {
-  categories,
-  profiles,
-  providerCategories,
-  providerProfiles,
-  user,
-} from "@/server/db/schema";
 import { resetTestDatabase, testOwnerDb } from "../helpers/db";
 
 const BANGKOK = { lat: 13.7563, lng: 100.5018 };
@@ -38,45 +30,46 @@ async function createProviderFixture(id: string, options: ProviderFixtureOptions
     categorySlug,
   } = options;
 
-  await testOwnerDb.insert(user).values({ id, name: id, email: `${id}@test.local` });
-  await testOwnerDb.insert(profiles).values({ id, role: "provider", fullName: id });
-  await testOwnerDb.insert(providerProfiles).values({
-    id,
-    displayName: id,
-    isActive,
-    isVerified,
-    latitude: lat.toFixed(6),
-    longitude: lng.toFixed(6),
-    serviceRadiusKm,
-    ratingAvg,
-    ratingCount,
-    basePrice,
+  await testOwnerDb.user.create({ data: { id, name: id, email: `${id}@test.local` } });
+  await testOwnerDb.profile.create({ data: { id, role: "provider", fullName: id } });
+  await testOwnerDb.providerProfile.create({
+    data: {
+      id,
+      displayName: id,
+      isActive,
+      isVerified,
+      latitude: lat.toFixed(6),
+      longitude: lng.toFixed(6),
+      serviceRadiusKm,
+      ratingAvg,
+      ratingCount,
+      basePrice,
+    },
   });
 
   if (categorySlug) {
-    const [category] = await testOwnerDb
-      .select({ id: categories.id })
-      .from(categories)
-      .where(eq(categories.slug, categorySlug));
+    const category = await testOwnerDb.category.findUnique({ where: { slug: categorySlug } });
     if (category) {
-      await testOwnerDb
-        .insert(providerCategories)
-        .values({ providerId: id, categoryId: category.id });
+      await testOwnerDb.providerCategory.create({
+        data: { providerId: id, categoryId: category.id },
+      });
     }
   }
 }
 
 async function createCustomerFixture(id: string) {
-  await testOwnerDb.insert(user).values({ id, name: id, email: `${id}@test.local` });
-  await testOwnerDb.insert(profiles).values({ id, role: "customer", fullName: id });
+  await testOwnerDb.user.create({ data: { id, name: id, email: `${id}@test.local` } });
+  await testOwnerDb.profile.create({ data: { id, role: "customer", fullName: id } });
 }
 
 beforeEach(async () => {
   await resetTestDatabase();
-  await testOwnerDb.insert(categories).values([
-    { slug: "electrician", nameTh: "ช่างไฟฟ้า", nameEn: "Electrician", icon: "zap" },
-    { slug: "plumber", nameTh: "ช่างประปา", nameEn: "Plumber", icon: "wrench" },
-  ]);
+  await testOwnerDb.category.createMany({
+    data: [
+      { slug: "electrician", nameTh: "ช่างไฟฟ้า", nameEn: "Electrician", icon: "zap" },
+      { slug: "plumber", nameTh: "ช่างประปา", nameEn: "Plumber", icon: "wrench" },
+    ],
+  });
 });
 
 describe("searchProviders", () => {
@@ -198,6 +191,8 @@ describe("getPublicProviderProfile", () => {
 
     expect(profile.latitude).toBe(13.123);
     expect(profile.longitude).toBe(100.988);
-    expect(profile.categories).toEqual([{ slug: "electrician", nameTh: "ช่างไฟฟ้า", icon: "zap" }]);
+    expect(profile.categories).toEqual([
+      { slug: "electrician", nameTh: "ช่างไฟฟ้า", nameEn: "Electrician", icon: "zap" },
+    ]);
   });
 });

@@ -6,11 +6,7 @@ import {
   setProviderCategories,
   updateProviderProfile,
 } from "@/server/services/provider";
-import {
-  addPortfolioItem,
-  confirmAvatarUpload,
-  removePortfolioItem,
-} from "@/server/services/upload";
+import { addPortfolioItem, removePortfolioItem } from "@/server/services/upload";
 import { toActionResult } from "@/server/actions/result";
 
 export async function updateProviderProfileAction(input: unknown) {
@@ -23,10 +19,6 @@ export async function setProviderCategoriesAction(input: unknown) {
 
 export async function setAvailabilityRulesAction(input: unknown) {
   return toActionResult(async () => setAvailabilityRules(await getActor(), input));
-}
-
-export async function confirmAvatarUploadAction(key: string) {
-  return toActionResult(async () => confirmAvatarUpload(await getActor(), key));
 }
 
 export async function addPortfolioItemAction(key: string, caption?: string) {

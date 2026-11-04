@@ -2,15 +2,19 @@ import { betterAuth } from "better-auth";
 import { phoneNumber } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
 import { APIError } from "better-auth/api";
-import { drizzleAdapter } from "@better-auth/drizzle-adapter";
+import { prismaAdapter } from "@better-auth/prisma-adapter";
 import { db } from "@/server/db/client";
-import { profiles } from "@/server/db/schema";
-import * as schema from "@/server/db/schema";
 import { env } from "@/server/lib/env";
 import { getSmsProvider } from "@/server/sms";
+import { sendAuthEmail } from "@/server/email/auth-emails";
 import { checkRateLimit } from "@/server/lib/rate-limit";
+import { normalizePhone, PHONE_PATTERN } from "@/lib/validations/profile";
 
 const googleEnabled = Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+
+function badRequest(code: string, message: string): APIError {
+  return APIError.fromStatus("BAD_REQUEST", { code, message });
+}
 
 function tempEmailForPhoneSignUp(phoneNumber: string): string {
   const digitsOnly = phoneNumber.replace(/[^0-9]/g, "");
@@ -20,17 +24,49 @@ function tempEmailForPhoneSignUp(phoneNumber: string): string {
 export const auth = betterAuth({
   secret: env.BETTER_AUTH_SECRET,
   baseURL: env.BETTER_AUTH_URL,
-  database: drizzleAdapter(db, {
-    provider: "pg",
-    schema,
+  database: prismaAdapter(db, {
+    provider: "postgresql",
   }),
-  // SPEC.md section 13: email+password sign-in is a dev-only convenience
-  // for the seeded test accounts. Treated as "not production" (not a
-  // literal NODE_ENV===development check) so it's still exercisable in
-  // CI's NODE_ENV=test integration tests.
-  emailAndPassword: {
-    enabled: env.NODE_ENV !== "production",
+  // Generated app-side rather than generateId: "uuid", which on Postgres
+  // omits `id` from inserts and depends on the column default.
+  advanced: {
+    database: {
+      generateId: () => crypto.randomUUID(),
+    },
   },
+  // Primary sign-up/sign-in method: name + email + password + phone number.
+  // The email must be confirmed before the first login, so nobody can sign
+  // up with someone else's address.
+  emailAndPassword: {
+    enabled: true,
+    minPasswordLength: 8,
+    requireEmailVerification: true,
+    resetPasswordTokenExpiresIn: 60 * 60,
+    // A reset logs out every other session, in case someone else got in.
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: async ({ user, url }, request) => {
+      sendAuthEmail("resetPassword", user, url, request);
+    },
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    expiresIn: 24 * 60 * 60,
+    sendVerificationEmail: async ({ user, url }, request) => {
+      sendAuthEmail("verifyEmail", user, url, request);
+    },
+  },
+  // Phone OTP / phone+password login isn't offered anywhere in the UI, so its
+  // endpoints are closed over HTTP (404) -- otherwise anyone could create
+  // accounts or trigger paid SMS through them. The phoneNumber plugin stays
+  // because it defines the user.phoneNumber field that email sign-up uses.
+  disabledPaths: [
+    "/phone-number/send-otp",
+    "/phone-number/verify",
+    "/phone-number/request-password-reset",
+    "/phone-number/reset-password",
+    "/sign-in/phone-number",
+  ],
   // SPEC.md section 7.1: every signup path (phone, Google, dev email)
   // lands here and gets a `profiles` row with role="customer" (the column
   // default) -- never anything a client could influence. Upgrading to
@@ -39,11 +75,40 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
+        // Email sign-up must carry a valid, unused phone number. Google
+        // sign-up has none, and phone-OTP sign-up already supplies one.
+        before: async (user, ctx) => {
+          const raw = typeof user.phoneNumber === "string" ? user.phoneNumber : "";
+          if (!raw) {
+            if (ctx?.path === "/sign-up/email") {
+              throw badRequest("PHONE_REQUIRED", "Phone number is required.");
+            }
+            return;
+          }
+          const phoneNumber = normalizePhone(raw);
+          if (!PHONE_PATTERN.test(phoneNumber)) {
+            throw badRequest("INVALID_PHONE", "Invalid phone number format.");
+          }
+          const taken = await db.user.findUnique({ where: { phoneNumber }, select: { id: true } });
+          if (taken) {
+            throw badRequest("PHONE_TAKEN", "This phone number is already registered.");
+          }
+          return { data: { ...user, phoneNumber } };
+        },
         after: async (user) => {
-          await db
-            .insert(profiles)
-            .values({ id: user.id, fullName: user.name })
-            .onConflictDoNothing();
+          await db.profile.upsert({
+            where: { id: user.id },
+            create: { id: user.id, fullName: user.name },
+            update: {},
+          });
+        },
+      },
+      // Mirrors name changes (`authClient.updateUser({ name })`) onto
+      // `profiles`, the table the rest of the app reads display names from.
+      update: {
+        after: async (user) => {
+          if (!user.name) return;
+          await db.profile.update({ where: { id: user.id }, data: { fullName: user.name } });
         },
       },
     },
@@ -64,6 +129,9 @@ export const auth = betterAuth({
       // enforced separately below, inside sendOTP, since that's the only
       // hook that knows the target phone number.
       "/phone-number/send-otp": { window: 60 * 60, max: 10 },
+      // Each of these sends an email -- keep them from being used to spam inboxes.
+      "/request-password-reset": { window: 60 * 60, max: 5 },
+      "/send-verification-email": { window: 60 * 60, max: 5 },
     },
   },
   plugins: [

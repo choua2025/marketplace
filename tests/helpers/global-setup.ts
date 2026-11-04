@@ -1,6 +1,4 @@
-import { Pool } from "pg";
-import { drizzle } from "drizzle-orm/node-postgres";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { execSync } from "node:child_process";
 import { loadTestEnv } from "./load-test-env";
 
 // Runs once before the whole test run: applies pending migrations to
@@ -14,10 +12,8 @@ export async function setup() {
     throw new Error("DATABASE_TEST_URL is required to run integration tests.");
   }
 
-  const pool = new Pool({ connectionString: databaseUrl });
-  const db = drizzle(pool);
-
-  await migrate(db, { migrationsFolder: "./src/server/db/migrations" });
-
-  await pool.end();
+  execSync("npx prisma migrate deploy", {
+    env: { ...process.env, DATABASE_URL: databaseUrl },
+    stdio: "inherit",
+  });
 }

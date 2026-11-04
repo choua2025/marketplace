@@ -5,7 +5,14 @@ RUN corepack enable
 WORKDIR /app
 
 FROM base AS deps
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml prisma.config.ts ./
+COPY prisma ./prisma
+# `pnpm install`'s postinstall runs `prisma generate`, which needs the
+# schema present -- hence copying prisma/ here, ahead of the full `COPY . .`
+# in the builder stage below. `generate` never connects to a database, but
+# prisma.config.ts's env("DATABASE_URL") still throws if the var is unset
+# at all -- this placeholder only needs to satisfy that, nothing reads it.
+ENV DATABASE_URL=postgres://placeholder:placeholder@localhost:5432/placeholder
 RUN pnpm install --frozen-lockfile
 
 FROM base AS builder
@@ -19,11 +26,9 @@ ENV APP_URL=http://localhost:3000
 ENV DATABASE_APP_URL=postgres://placeholder:placeholder@localhost:5432/placeholder
 ENV BETTER_AUTH_SECRET=placeholder-build-time-secret
 ENV BETTER_AUTH_URL=http://localhost:3000
-ENV S3_ENDPOINT=http://localhost:9000
-ENV S3_REGION=garage
-ENV S3_ACCESS_KEY_ID=placeholder
-ENV S3_SECRET_ACCESS_KEY=placeholder
-ENV S3_BUCKET=changdee
+ENV CLOUDINARY_CLOUD_NAME=placeholder
+ENV CLOUDINARY_API_KEY=placeholder
+ENV CLOUDINARY_API_SECRET=placeholder
 RUN pnpm build
 
 FROM base AS runner
@@ -39,6 +44,7 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \n  CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 CMD ["node", "server.js"]

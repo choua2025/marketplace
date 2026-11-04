@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getLocale } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 import { getActor } from "@/server/auth/session";
 import { getPublicProviderProfile } from "@/server/services/provider";
@@ -23,17 +23,22 @@ export default async function BookProviderPage({
     throw error;
   }
 
+  const t = await getTranslations("booking");
+
   if (actor.role !== "customer") {
     return (
-      <main className="mx-auto flex min-h-screen max-w-md items-center justify-center p-4 text-center">
-        <p className="text-muted-foreground">เฉพาะบัญชีลูกค้าเท่านั้นที่จองงานได้</p>
+      <main className="mx-auto flex flex-1 max-w-md items-center justify-center p-4 text-center">
+        <p className="text-muted-foreground">{t("customersOnly")}</p>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto flex max-w-md flex-col gap-4 p-4 pb-12">
-      <h1 className="text-2xl font-bold">จองงานกับ {provider.displayName}</h1>
+    <main className="mx-auto flex max-w-4xl flex-col gap-6 p-4 pb-12">
+      <section className="rounded-2xl bg-primary px-6 py-8 text-primary-foreground">
+        <h1 className="text-2xl font-bold">{t("pageTitle", { name: provider.displayName })}</h1>
+        <p className="mt-1 text-sm text-primary-foreground/80">{t("pageSubtitle")}</p>
+      </section>
       <BookingForm
         providerId={provider.id}
         categories={provider.categories}

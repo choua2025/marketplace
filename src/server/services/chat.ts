@@ -1,6 +1,5 @@
-import { and, eq, isNull, ne } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { conversations, messages } from "@/server/db/schema";
+import type { Prisma } from "@/server/db/generated/prisma/client";
 import { AppError } from "@/server/lib/errors";
 import { checkRateLimit } from "@/server/lib/rate-limit";
 import type { Actor } from "@/server/lib/actor";
@@ -8,17 +7,35 @@ import { sendMessageSchema, startConversationSchema } from "@/lib/validations/ch
 
 const MESSAGES_PER_MINUTE = 20;
 
-export const messageColumns = {
-  id: messages.id,
-  conversationId: messages.conversationId,
-  senderId: messages.senderId,
-  body: messages.body,
-  imageKey: messages.imageKey,
-  readAt: messages.readAt,
-  createdAt: messages.createdAt,
-};
+export const messageSelect = {
+  id: true,
+  conversationId: true,
+  senderId: true,
+  body: true,
+  imageKey: true,
+  readAt: true,
+  createdAt: true,
+} satisfies Prisma.MessageSelect;
 
-export type MessageDto = Awaited<ReturnType<typeof sendMessage>>;
+export interface MessageDto {
+  id: number;
+  conversationId: string;
+  senderId: string;
+  body: string | null;
+  imageKey: string | null;
+  readAt: Date | null;
+  createdAt: Date;
+}
+
+/** messages.id is a Postgres bigint -- Prisma surfaces it as a native
+ * `bigint`, which JSON.stringify (used by the SSE route) can't serialize.
+ * Converted to `number` at the service boundary, same as the previous
+ * Drizzle `mode: "number"` column did. */
+export function toMessageDto(
+  row: Prisma.MessageGetPayload<{ select: typeof messageSelect }>,
+): MessageDto {
+  return { ...row, id: Number(row.id) };
+}
 
 /**
  * Fetches one message by id, for the SSE route to re-hydrate a NOTIFY
@@ -26,23 +43,16 @@ export type MessageDto = Awaited<ReturnType<typeof sendMessage>>;
  * a party of the conversation before it ever subscribed to its channel.
  */
 export async function getMessageById(messageId: number): Promise<MessageDto | undefined> {
-  const [message] = await db
-    .select(messageColumns)
-    .from(messages)
-    .where(eq(messages.id, messageId));
-  return message;
+  const message = await db.message.findUnique({ where: { id: messageId }, select: messageSelect });
+  return message ? toMessageDto(message) : undefined;
 }
 
 /** Loads a conversation and asserts `actor` is one of its two parties. */
 export async function assertConversationParty(actor: Actor, conversationId: string) {
-  const [conversation] = await db
-    .select({
-      id: conversations.id,
-      customerId: conversations.customerId,
-      providerId: conversations.providerId,
-    })
-    .from(conversations)
-    .where(eq(conversations.id, conversationId));
+  const conversation = await db.conversation.findUnique({
+    where: { id: conversationId },
+    select: { id: true, customerId: true, providerId: true },
+  });
 
   // Outsiders get NOT_FOUND, never FORBIDDEN, so they can't tell the
   // conversation exists at all (same reasoning as bookings, SPEC.md 7.3).
@@ -65,18 +75,11 @@ export async function startConversation(actor: Actor | null, input: unknown) {
   const { providerId } = startConversationSchema.parse(input);
   if (providerId === actor.id) throw new AppError("FORBIDDEN");
 
-  await db
-    .insert(conversations)
-    .values({ customerId: actor.id, providerId })
-    .onConflictDoNothing({ target: [conversations.customerId, conversations.providerId] });
-
-  const [conversation] = await db
-    .select()
-    .from(conversations)
-    .where(and(eq(conversations.customerId, actor.id), eq(conversations.providerId, providerId)));
-
-  if (!conversation) throw new Error("failed to create or load conversation");
-  return conversation;
+  return db.conversation.upsert({
+    where: { customerId_providerId: { customerId: actor.id, providerId } },
+    create: { customerId: actor.id, providerId },
+    update: {},
+  });
 }
 
 function assertImageKeyBelongsToConversation(imageKey: string, conversationId: string): void {
@@ -99,18 +102,17 @@ export async function sendMessage(actor: Actor | null, conversationId: string, i
   const parsed = sendMessageSchema.parse(input);
   if (parsed.imageKey) assertImageKeyBelongsToConversation(parsed.imageKey, conversationId);
 
-  const [created] = await db
-    .insert(messages)
-    .values({
+  const created = await db.message.create({
+    data: {
       conversationId,
       senderId: actor.id,
       body: parsed.body ?? null,
       imageKey: parsed.imageKey ?? null,
-    })
-    .returning(messageColumns);
+    },
+    select: messageSelect,
+  });
 
-  if (!created) throw new Error("failed to insert message");
-  return created;
+  return toMessageDto(created);
 }
 
 /** Marks every message the *other* party sent as read. */
@@ -121,14 +123,8 @@ export async function markConversationRead(
   if (!actor) throw new AppError("UNAUTHORIZED");
   await assertConversationParty(actor, conversationId);
 
-  await db
-    .update(messages)
-    .set({ readAt: new Date() })
-    .where(
-      and(
-        eq(messages.conversationId, conversationId),
-        ne(messages.senderId, actor.id),
-        isNull(messages.readAt),
-      ),
-    );
+  await db.message.updateMany({
+    where: { conversationId, senderId: { not: actor.id }, readAt: null },
+    data: { readAt: new Date() },
+  });
 }

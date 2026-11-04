@@ -1,11 +1,19 @@
-import { Pool } from "pg";
-import { drizzle } from "drizzle-orm/node-postgres";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "@/server/db/generated/prisma/client";
 import { env } from "@/server/lib/env";
-import * as schema from "./schema";
 
 // Connects with the least-privilege app role (DML only, no DDL -- see
-// SPEC.md section 5.7). Migrations/seed use a separate owner-role script,
-// never this client.
-const pool = new Pool({ connectionString: env.DATABASE_APP_URL });
+// SPEC.md section 5.7). Migrations/seed use a separate owner-role script
+// (prisma.config.ts's DATABASE_URL), never this client.
+const adapter = new PrismaPg({ connectionString: env.DATABASE_APP_URL });
 
-export const db = drizzle(pool, { schema });
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+
+// Reuse a single instance across Next.js dev-server hot reloads -- each
+// PrismaClient owns its own connection pool, and the module graph gets
+// re-evaluated on every edit in dev, which would otherwise leak pools.
+export const db = globalForPrisma.prisma ?? new PrismaClient({ adapter });
+
+if (env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = db;
+}

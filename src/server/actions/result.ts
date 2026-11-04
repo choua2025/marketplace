@@ -1,4 +1,5 @@
 import { getLocale } from "next-intl/server";
+import { ZodError } from "zod";
 import { AppError, translateErrorCode, type Locale } from "@/server/lib/errors";
 
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -13,10 +14,12 @@ export async function toActionResult<T>(fn: () => Promise<T>): Promise<ActionRes
     const data = await fn();
     return { ok: true, data };
   } catch (error: unknown) {
-    if (error instanceof AppError) {
-      // Guaranteed to be "th" | "en" -- routing.ts only ever configures these two.
+    if (error instanceof AppError || error instanceof ZodError) {
+      // Guaranteed to be "th" | "en" | "lo" -- routing.ts only ever configures these three.
       const locale = (await getLocale()) as Locale;
-      return { ok: false, error: translateErrorCode(error.code, locale) };
+      // A ZodError's message is the raw issue list as JSON -- never show that.
+      const code = error instanceof AppError ? error.code : "VALIDATION_ERROR";
+      return { ok: false, error: translateErrorCode(code, locale) };
     }
     return { ok: false, error: error instanceof Error ? error.message : "UNKNOWN_ERROR" };
   }

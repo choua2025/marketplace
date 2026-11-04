@@ -8,21 +8,20 @@ import {
 import { subscribeToConversation } from "@/server/realtime/pg-listener";
 import { resetRateLimitsForTesting } from "@/server/lib/rate-limit";
 import type { Actor } from "@/server/lib/actor";
-import { messages, profiles, providerProfiles, user } from "@/server/db/schema";
 import { resetTestDatabase, testOwnerDb } from "../helpers/db";
 
 async function createCustomerFixture(id: string): Promise<Actor> {
-  await testOwnerDb.insert(user).values({ id, name: id, email: `${id}@test.local` });
-  await testOwnerDb.insert(profiles).values({ id, role: "customer", fullName: id });
+  await testOwnerDb.user.create({ data: { id, name: id, email: `${id}@test.local` } });
+  await testOwnerDb.profile.create({ data: { id, role: "customer", fullName: id } });
   return { id, role: "customer" };
 }
 
 async function createProviderFixture(id: string): Promise<Actor> {
-  await testOwnerDb.insert(user).values({ id, name: id, email: `${id}@test.local` });
-  await testOwnerDb.insert(profiles).values({ id, role: "provider", fullName: id });
-  await testOwnerDb
-    .insert(providerProfiles)
-    .values({ id, displayName: id, isActive: true, latitude: "13.75", longitude: "100.50" });
+  await testOwnerDb.user.create({ data: { id, name: id, email: `${id}@test.local` } });
+  await testOwnerDb.profile.create({ data: { id, role: "provider", fullName: id } });
+  await testOwnerDb.providerProfile.create({
+    data: { id, displayName: id, isActive: true, latitude: "13.75", longitude: "100.50" },
+  });
   return { id, role: "provider" };
 }
 
@@ -159,13 +158,13 @@ describe("listMessages / listConversations / markConversationRead", () => {
 
     // Inserted directly (bypassing sendMessage/the rate limiter) since this
     // test is about pagination over volume, not send-time rules.
-    await testOwnerDb.insert(messages).values(
-      Array.from({ length: 35 }, (_, i) => ({
+    await testOwnerDb.message.createMany({
+      data: Array.from({ length: 35 }, (_, i) => ({
         conversationId: conversation.id,
         senderId: customer.id,
         body: `msg ${i}`,
       })),
-    );
+    });
 
     const firstPage = await listMessages(customer, conversation.id, {});
     expect(firstPage.items).toHaveLength(30);

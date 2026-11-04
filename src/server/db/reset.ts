@@ -1,6 +1,4 @@
 import { Pool } from "pg";
-import { drizzle } from "drizzle-orm/node-postgres";
-import { sql } from "drizzle-orm";
 
 try {
   process.loadEnvFile(".env");
@@ -17,20 +15,22 @@ if (!databaseUrl) {
 // does not have (SPEC.md section 5.7) -- this connects with the owner role
 // instead, never the shared app-role client in ./client.ts.
 const pool = new Pool({ connectionString: databaseUrl });
-const db = drizzle(pool);
 
 async function main() {
-  const tables = await db.execute<{ tablename: string }>(
-    sql`SELECT tablename FROM pg_tables WHERE schemaname = 'public'`,
+  // _prisma_migrations tracks applied migrations in this same schema --
+  // truncating it would make `prisma migrate deploy` think none had ever
+  // run and try to recreate tables that already exist.
+  const { rows } = await pool.query<{ tablename: string }>(
+    "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'",
   );
 
-  const names = tables.rows.map((row) => `"${row.tablename}"`);
+  const names = rows.map((row) => `"${row.tablename}"`);
   if (names.length === 0) {
     console.log("No tables found, nothing to reset.");
     return;
   }
 
-  await db.execute(sql.raw(`TRUNCATE TABLE ${names.join(", ")} RESTART IDENTITY CASCADE`));
+  await pool.query(`TRUNCATE TABLE ${names.join(", ")} RESTART IDENTITY CASCADE`);
   console.log(`Reset complete: truncated ${names.length} tables.`);
 }
 

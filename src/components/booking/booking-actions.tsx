@@ -2,6 +2,7 @@
 
 import { useRouter } from "@/i18n/navigation";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Loader2 } from "lucide-react";
 import { updateBookingStatusAction } from "@/app/[locale]/bookings/[id]/actions";
 import type { BookingStatus } from "@/lib/validations/booking";
@@ -16,6 +17,7 @@ interface BookingActionsProps {
 }
 
 export function BookingActions({ bookingId, status, isCustomer, isProvider }: BookingActionsProps) {
+  const t = useTranslations("booking");
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,19 +43,19 @@ export function BookingActions({ bookingId, status, isCustomer, isProvider }: Bo
     <div className="flex flex-col gap-2">
       {isProvider && status === "pending" ? (
         <Button className="h-12" disabled={loading} onClick={() => runTransition("confirmed")}>
-          {loading ? <Loader2 className="animate-spin" /> : "ยืนยันรับงาน"}
+          {loading ? <Loader2 className="animate-spin" /> : t("actionConfirm")}
         </Button>
       ) : null}
 
       {isProvider && status === "confirmed" ? (
         <Button className="h-12" disabled={loading} onClick={() => runTransition("in_progress")}>
-          {loading ? <Loader2 className="animate-spin" /> : "เริ่มงาน"}
+          {loading ? <Loader2 className="animate-spin" /> : t("actionStart")}
         </Button>
       ) : null}
 
       {isProvider && status === "in_progress" ? (
         <Button className="h-12" disabled={loading} onClick={() => runTransition("completed")}>
-          {loading ? <Loader2 className="animate-spin" /> : "งานเสร็จแล้ว"}
+          {loading ? <Loader2 className="animate-spin" /> : t("actionComplete")}
         </Button>
       ) : null}
 
@@ -63,7 +65,7 @@ export function BookingActions({ bookingId, status, isCustomer, isProvider }: Bo
             <Textarea
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}
-              placeholder="ระบุเหตุผลในการยกเลิก"
+              placeholder={t("cancelReasonPlaceholder")}
               rows={2}
             />
             <div className="flex gap-2">
@@ -72,16 +74,16 @@ export function BookingActions({ bookingId, status, isCustomer, isProvider }: Bo
                 disabled={loading || !cancelReason.trim()}
                 onClick={() => runTransition("cancelled", { cancelReason })}
               >
-                {loading ? <Loader2 className="animate-spin" /> : "ยืนยันการยกเลิก"}
+                {loading ? <Loader2 className="animate-spin" /> : t("confirmCancel")}
               </Button>
               <Button variant="ghost" onClick={() => setShowCancelForm(false)}>
-                ไม่ยกเลิก
+                {t("keepBooking")}
               </Button>
             </div>
           </div>
         ) : (
           <Button variant="outline" className="h-12" onClick={() => setShowCancelForm(true)}>
-            ยกเลิกงาน
+            {t("cancelBooking")}
           </Button>
         )
       ) : null}

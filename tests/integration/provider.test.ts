@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
 import { ZodError } from "zod";
 import {
   addPortfolioItem,
@@ -13,40 +12,45 @@ import {
   setProviderCategories,
   updateProviderProfile,
 } from "@/server/services/provider";
-import { categories, portfolioItems, profiles, providerProfiles, user } from "@/server/db/schema";
 import type { Actor } from "@/server/lib/actor";
 import { resetTestDatabase, testOwnerDb } from "../helpers/db";
 
 async function createProviderFixture(id: string): Promise<Actor> {
-  await testOwnerDb.insert(user).values({ id, name: id, email: `${id}@test.local` });
-  await testOwnerDb.insert(profiles).values({ id, role: "provider", fullName: id });
-  await testOwnerDb.insert(providerProfiles).values({ id, displayName: id, isActive: false });
+  await testOwnerDb.user.create({ data: { id, name: id, email: `${id}@test.local` } });
+  await testOwnerDb.profile.create({ data: { id, role: "provider", fullName: id } });
+  await testOwnerDb.providerProfile.create({ data: { id, displayName: id, isActive: false } });
   return { id, role: "provider" };
 }
 
 async function createCustomerFixture(id: string): Promise<Actor> {
-  await testOwnerDb.insert(user).values({ id, name: id, email: `${id}@test.local` });
-  await testOwnerDb.insert(profiles).values({ id, role: "customer", fullName: id });
+  await testOwnerDb.user.create({ data: { id, name: id, email: `${id}@test.local` } });
+  await testOwnerDb.profile.create({ data: { id, role: "customer", fullName: id } });
   return { id, role: "customer" };
 }
 
 beforeEach(async () => {
   await resetTestDatabase();
-  await testOwnerDb
-    .insert(categories)
-    .values([{ slug: "electrician", nameTh: "ช่างไฟฟ้า", nameEn: "Electrician", icon: "zap" }]);
+  await testOwnerDb.category.createMany({
+    data: [{ slug: "electrician", nameTh: "ช่างไฟฟ้า", nameEn: "Electrician", icon: "zap" }],
+  });
 });
 
 describe("createUploadUrl", () => {
   it("generates a key prefixed with purpose/actorId", async () => {
     const provider = await createProviderFixture("prov1");
-    const { key, uploadUrl } = await createUploadUrl(provider, {
+    const { key, uploadUrl, fields } = await createUploadUrl(provider, {
       purpose: "avatar",
       contentType: "image/png",
       contentLength: 1024,
     });
     expect(key.startsWith(`avatar/${provider.id}/`)).toBe(true);
-    expect(uploadUrl).toContain("http");
+    expect(key.endsWith(".png")).toBe(true);
+    expect(uploadUrl).toMatch(/^https:\/\/api\.cloudinary\.com\/v1_1\/.+\/image\/upload$/);
+    // The signed public id must be exactly the issued key (minus extension),
+    // and uploads must land as private assets.
+    expect(fields.public_id?.endsWith(key.replace(/\.png$/, ""))).toBe(true);
+    expect(fields.type).toBe("authenticated");
+    expect(fields.signature).toMatch(/^[0-9a-f]{40}$/);
   });
 
   it("rejects a disallowed content type", async () => {
@@ -99,7 +103,7 @@ describe("confirmAvatarUpload / addPortfolioItem key-prefix enforcement", () => 
 
     await confirmAvatarUpload(provider, key);
 
-    const [row] = await testOwnerDb.select().from(profiles).where(eq(profiles.id, "prov1"));
+    const row = await testOwnerDb.profile.findUnique({ where: { id: "prov1" } });
     expect(row?.avatarKey).toBe(key);
   });
 
@@ -132,10 +136,7 @@ describe("removePortfolioItem", () => {
 
     await removePortfolioItem(provider, item.id);
 
-    const rows = await testOwnerDb
-      .select()
-      .from(portfolioItems)
-      .where(eq(portfolioItems.id, item.id));
+    const rows = await testOwnerDb.portfolioItem.findMany({ where: { id: item.id } });
     expect(rows).toHaveLength(0);
   });
 

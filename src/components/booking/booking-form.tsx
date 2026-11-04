@@ -1,38 +1,50 @@
 "use client";
 
 import { useRouter } from "@/i18n/navigation";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { Loader2, Upload, X } from "lucide-react";
 import { createBookingAction } from "@/app/[locale]/(customer)/book/[providerId]/actions";
 import { uploadFile } from "@/lib/upload-client";
+import { categoryName } from "@/lib/category-name";
+import { bookingTimeProblem, type BookingTimeProblem } from "@/lib/validations/booking";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
-const PRICE_UNIT_LABEL: Record<string, string> = {
-  job: "ต่องาน",
-  hour: "ต่อชั่วโมง",
-  day: "ต่อวัน",
-};
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { CategoryIcon } from "@/components/category-icon";
 
 const MAX_PHOTOS = 5;
+// Same minimums as createBookingSchema (src/lib/validations/booking.ts).
+const MIN_DESCRIPTION = 10;
+const MIN_ADDRESS = 5;
 
 interface BookingFormProps {
   providerId: string;
-  categories: { slug: string; nameTh: string; icon: string }[];
+  categories: { slug: string; nameTh: string; nameEn: string; icon: string }[];
   basePrice: string;
   priceUnit: "job" | "hour" | "day";
 }
 
+function StepHeading({ step, title }: { step: number; title: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+        {step}
+      </span>
+      <h2 className="font-semibold">{title}</h2>
+    </div>
+  );
+}
+
 export function BookingForm({ providerId, categories, basePrice, priceUnit }: BookingFormProps) {
+  const t = useTranslations("booking");
+  const tCommon = useTranslations("common");
+  const tErrors = useTranslations("errors");
+  const format = useFormatter();
+  const locale = useLocale();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -47,6 +59,25 @@ export function BookingForm({ providerId, categories, basePrice, priceUnit }: Bo
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const selectedCategory = useMemo(
+    () => categories.find((c) => c.slug === categorySlug) ?? categories[0],
+    [categories, categorySlug],
+  );
+
+  const priceUnitLabel = {
+    job: tCommon("priceUnitJob"),
+    hour: tCommon("priceUnitHour"),
+    day: tCommon("priceUnitDay"),
+  }[priceUnit];
+  const price = `${format.number(Number(basePrice))} ${tCommon("currency")}`;
+
+  function formatDateTime(value: string) {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "—";
+    return format.dateTime(date, { dateStyle: "medium", timeStyle: "short" });
+  }
+
   async function handleAddPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -56,7 +87,11 @@ export function BookingForm({ providerId, categories, basePrice, priceUnit }: Bo
       const key = await uploadFile(file, "booking");
       setPhotoKeys((keys) => [...keys, key]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "UPLOAD_FAILED");
+      setError(
+        err instanceof Error && err.message !== "UPLOAD_FAILED"
+          ? err.message
+          : tErrors("UPLOAD_FAILED"),
+      );
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -90,113 +125,218 @@ export function BookingForm({ providerId, categories, basePrice, priceUnit }: Bo
     router.push(`/bookings/${result.data.id}`);
   }
 
+  const descriptionLength = description.trim().length;
+  const addressLength = address.trim().length;
+
+  // Same rules the server enforces. With only a start picked, check just the
+  // start (a 1 ms end is always a valid range).
+  const startDate = startAt ? new Date(startAt) : null;
+  const endDate = endAt ? new Date(endAt) : null;
+  const timeProblem = startDate
+    ? bookingTimeProblem(startDate, endDate ?? new Date(startDate.getTime() + 1))
+    : null;
+  const timeProblemMessage: Record<BookingTimeProblem, string> = {
+    startTooSoon: t("timeStartTooSoon"),
+    startTooFar: t("timeStartTooFar"),
+    endBeforeStart: t("timeEndBeforeStart"),
+    tooLong: t("timeTooLong"),
+  };
+
+  const canSubmit =
+    !submitting &&
+    !!startAt &&
+    !!endAt &&
+    !timeProblem &&
+    descriptionLength >= MIN_DESCRIPTION &&
+    addressLength >= MIN_ADDRESS;
+
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-muted-foreground text-sm">
-        ราคาเริ่มต้น {Number(basePrice).toLocaleString()} บาท / {PRICE_UNIT_LABEL[priceUnit]}
-      </p>
-
-      <div className="flex flex-col gap-2">
-        <Label>หมวดงาน</Label>
-        <Select value={categorySlug} onValueChange={setCategorySlug}>
-          <SelectTrigger className="h-12 w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
+    <div className="grid gap-6 lg:grid-cols-[1fr_320px] lg:items-start">
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-sm">
+          <StepHeading step={1} title={t("step1")} />
+          <RadioGroup
+            value={categorySlug}
+            onValueChange={setCategorySlug}
+            className="grid grid-cols-2 gap-2 sm:grid-cols-3"
+          >
             {categories.map((c) => (
-              <SelectItem key={c.slug} value={c.slug}>
-                {c.nameTh}
-              </SelectItem>
+              <label
+                key={c.slug}
+                className={cn(
+                  "flex cursor-pointer flex-col gap-1 rounded-lg border p-3 text-sm transition-colors",
+                  "has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5",
+                )}
+              >
+                <RadioGroupItem value={c.slug} className="sr-only" />
+                <span className="flex items-center gap-1.5 font-medium">
+                  <CategoryIcon icon={c.icon} className="size-4 text-primary" />
+                  {categoryName(c, locale)}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {t("startingFrom", { price })} / {priceUnitLabel}
+                </span>
+              </label>
             ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="startAt">วันเวลาเริ่มงาน</Label>
-          <Input
-            id="startAt"
-            type="datetime-local"
-            value={startAt}
-            onChange={(e) => setStartAt(e.target.value)}
-            className="h-12"
-          />
+          </RadioGroup>
         </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="endAt">ถึงเวลา</Label>
-          <Input
-            id="endAt"
-            type="datetime-local"
-            value={endAt}
-            onChange={(e) => setEndAt(e.target.value)}
-            className="h-12"
-          />
-        </div>
-      </div>
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="description">อธิบายปัญหา</Label>
-        <Textarea
-          id="description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={4}
-          placeholder="อธิบายงานที่ต้องการให้ช่างทำ อย่างน้อย 10 ตัวอักษร"
-        />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="address">ที่อยู่ที่ให้บริการ</Label>
-        <Textarea
-          id="address"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          rows={2}
-          placeholder="บ้านเลขที่ ถนน ตำบล/แขวง อำเภอ/เขต จังหวัด"
-        />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Label>รูปประกอบ (สูงสุด {MAX_PHOTOS} รูป)</Label>
-        <div className="flex flex-wrap gap-2">
-          {photoKeys.map((key) => (
-            <div key={key} className="bg-muted flex items-center gap-1 rounded px-2 py-1 text-xs">
-              <span className="max-w-32 truncate">{key.split("/").pop()}</span>
-              <button type="button" onClick={() => removePhoto(key)} aria-label="ลบรูปนี้">
-                <X className="size-3" />
-              </button>
+        <div className="flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-sm">
+          <StepHeading step={2} title={t("step2")} />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="startAt">{t("startAtLabel")}</Label>
+              <Input
+                id="startAt"
+                type="datetime-local"
+                value={startAt}
+                onChange={(e) => setStartAt(e.target.value)}
+                aria-invalid={
+                  timeProblem === "startTooSoon" || timeProblem === "startTooFar" || undefined
+                }
+                aria-describedby="time-hint"
+                className="h-12"
+              />
             </div>
-          ))}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="endAt">{t("endAtLabel")}</Label>
+              <Input
+                id="endAt"
+                type="datetime-local"
+                value={endAt}
+                min={startAt || undefined}
+                onChange={(e) => setEndAt(e.target.value)}
+                aria-invalid={
+                  timeProblem === "endBeforeStart" || timeProblem === "tooLong" || undefined
+                }
+                aria-describedby="time-hint"
+                className="h-12"
+              />
+            </div>
+          </div>
+          {timeProblem ? (
+            <p id="time-hint" role="alert" className="text-sm text-destructive">
+              {timeProblemMessage[timeProblem]}
+            </p>
+          ) : null}
         </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          className="hidden"
-          onChange={handleAddPhoto}
-        />
+
+        <div className="flex flex-col gap-4 rounded-2xl border bg-card p-4 shadow-sm">
+          <StepHeading step={3} title={t("step3")} />
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="description">{t("descriptionLabel")}</Label>
+            <Textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={4}
+              placeholder={t("descriptionPlaceholder")}
+              aria-describedby="description-hint"
+            />
+            {descriptionLength > 0 && descriptionLength < MIN_DESCRIPTION ? (
+              <p id="description-hint" className="text-xs text-destructive">
+                {t("minChars", { min: MIN_DESCRIPTION, count: descriptionLength })}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="address">{t("addressLabel")}</Label>
+            <Textarea
+              id="address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              rows={2}
+              placeholder={t("addressPlaceholder")}
+              aria-describedby="address-hint"
+            />
+            {addressLength > 0 && addressLength < MIN_ADDRESS ? (
+              <p id="address-hint" className="text-xs text-destructive">
+                {t("minChars", { min: MIN_ADDRESS, count: addressLength })}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label>{t("photosLabel", { max: MAX_PHOTOS })}</Label>
+            <div className="flex flex-wrap gap-2">
+              {photoKeys.map((key) => (
+                <div
+                  key={key}
+                  className="bg-muted flex items-center gap-1 rounded px-2 py-1 text-xs"
+                >
+                  <span className="max-w-32 truncate">{key.split("/").pop()}</span>
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(key)}
+                    aria-label={tCommon("removePhoto")}
+                  >
+                    <X className="size-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleAddPhoto}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={uploading || photoKeys.length >= MAX_PHOTOS}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {uploading ? <Loader2 className="animate-spin" /> : <Upload className="size-4" />}
+              {t("addPhoto")}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-4 rounded-2xl border bg-card p-4 shadow-sm lg:sticky lg:top-20">
+        <h2 className="font-semibold">{t("summaryTitle")}</h2>
+        <dl className="flex flex-col gap-2 text-sm">
+          <div className="flex items-center justify-between gap-2">
+            <dt className="text-muted-foreground">{t("summaryService")}</dt>
+            <dd className="truncate font-medium">
+              {selectedCategory ? categoryName(selectedCategory, locale) : "—"}
+            </dd>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <dt className="text-muted-foreground">{t("summaryStart")}</dt>
+            <dd className="text-right font-medium">{formatDateTime(startAt)}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <dt className="text-muted-foreground">{t("summaryEnd")}</dt>
+            <dd className="text-right font-medium">{formatDateTime(endAt)}</dd>
+          </div>
+        </dl>
+
+        <div className="flex items-center justify-between border-t pt-3">
+          <span className="text-sm text-muted-foreground">{t("summaryStartingPrice")}</span>
+          <span className="text-lg font-bold">
+            {price}
+            <span className="text-sm font-normal text-muted-foreground"> / {priceUnitLabel}</span>
+          </span>
+        </div>
+
         <Button
           type="button"
-          variant="outline"
-          disabled={uploading || photoKeys.length >= MAX_PHOTOS}
-          onClick={() => fileInputRef.current?.click()}
+          className="h-12 bg-brand-accent text-brand-accent-foreground hover:bg-brand-accent/90"
+          disabled={!canSubmit}
+          onClick={handleSubmit}
         >
-          {uploading ? <Loader2 className="animate-spin" /> : <Upload className="size-4" />}
-          เพิ่มรูป
+          {submitting ? <Loader2 className="animate-spin" /> : t("confirm")}
         </Button>
+
+        {error ? <p className="text-destructive text-sm">{error}</p> : null}
+
+        <p className="text-xs text-muted-foreground">{t("priceNote")}</p>
       </div>
-
-      <Button
-        type="button"
-        className="h-12 bg-brand-accent text-brand-accent-foreground hover:bg-brand-accent/90"
-        disabled={submitting || !startAt || !endAt || !description || !address}
-        onClick={handleSubmit}
-      >
-        {submitting ? <Loader2 className="animate-spin" /> : "ส่งคำขอจอง"}
-      </Button>
-
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
     </div>
   );
 }

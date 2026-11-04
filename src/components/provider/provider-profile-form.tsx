@@ -2,7 +2,9 @@
 
 import { useRouter } from "@/i18n/navigation";
 import { useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { Loader2, MapPin } from "lucide-react";
+import { categoryName } from "@/lib/category-name";
 import type { ProviderProfileDto } from "@/server/services/provider";
 import type { CategoryDto } from "@/server/services/category";
 import {
@@ -34,6 +36,9 @@ export function ProviderProfileForm({
   initialCategorySlugs,
   allCategories,
 }: ProviderProfileFormProps) {
+  const t = useTranslations("dashboard");
+  const tCommon = useTranslations("common");
+  const locale = useLocale();
   const router = useRouter();
 
   const [displayName, setDisplayName] = useState(initialProfile.displayName);
@@ -102,7 +107,7 @@ export function ProviderProfileForm({
   return (
     <div className="flex flex-col gap-4 rounded-lg border p-4">
       <div className="flex flex-col gap-2">
-        <Label htmlFor="displayName">ชื่อร้าน</Label>
+        <Label htmlFor="displayName">{t("shopName")}</Label>
         <Input
           id="displayName"
           value={displayName}
@@ -112,13 +117,13 @@ export function ProviderProfileForm({
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="bio">คำอธิบาย</Label>
+        <Label htmlFor="bio">{t("bio")}</Label>
         <Textarea id="bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={4} />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="basePrice">ราคาเริ่มต้น (บาท)</Label>
+          <Label htmlFor="basePrice">{t("basePrice", { currency: tCommon("currency") })}</Label>
           <Input
             id="basePrice"
             type="number"
@@ -129,45 +134,43 @@ export function ProviderProfileForm({
           />
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="priceUnit">หน่วยราคา</Label>
+          <Label htmlFor="priceUnit">{t("priceUnit")}</Label>
           <Select value={priceUnit} onValueChange={(v) => setPriceUnit(v as typeof priceUnit)}>
             <SelectTrigger id="priceUnit" className="h-12 w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="job">ต่องาน</SelectItem>
-              <SelectItem value="hour">ต่อชั่วโมง</SelectItem>
-              <SelectItem value="day">ต่อวัน</SelectItem>
+              <SelectItem value="job">{tCommon("priceUnitJob")}</SelectItem>
+              <SelectItem value="hour">{tCommon("priceUnitHour")}</SelectItem>
+              <SelectItem value="day">{tCommon("priceUnitDay")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="areaLabel">พื้นที่ให้บริการ</Label>
+        <Label htmlFor="areaLabel">{t("areaLabel")}</Label>
         <Input
           id="areaLabel"
           value={areaLabel}
           onChange={(e) => setAreaLabel(e.target.value)}
-          placeholder="เช่น ลาดพร้าว, กรุงเทพฯ"
+          placeholder={t("areaPlaceholder")}
           className="h-12"
         />
         <Button type="button" variant="outline" className="h-10 w-fit" onClick={useCurrentLocation}>
-          <MapPin className="size-4" /> ใช้ตำแหน่งปัจจุบัน
+          <MapPin className="size-4" /> {t("useCurrentLocation")}
         </Button>
         {latitude && longitude ? (
           <p className="text-muted-foreground text-xs">
-            พิกัด: {latitude}, {longitude}
+            {t("coordinates", { lat: latitude, lng: longitude })}
           </p>
         ) : (
-          <p className="text-muted-foreground text-xs">
-            ยังไม่ได้ตั้งพิกัด (ต้องตั้งก่อนเปิดใช้งาน)
-          </p>
+          <p className="text-muted-foreground text-xs">{t("noCoordinates")}</p>
         )}
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="serviceRadiusKm">รัศมีให้บริการ (กม.)</Label>
+        <Label htmlFor="serviceRadiusKm">{t("serviceRadius")}</Label>
         <Input
           id="serviceRadiusKm"
           type="number"
@@ -180,29 +183,29 @@ export function ProviderProfileForm({
       </div>
 
       <div className="flex items-center justify-between rounded-md border p-3">
-        <Label htmlFor="isActive">เปิดรับงาน (แสดงในผลค้นหา)</Label>
+        <Label htmlFor="isActive">{t("isActive")}</Label>
         <Switch id="isActive" checked={isActive} onCheckedChange={setIsActive} />
       </div>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="mb-1 text-sm font-medium">หมวดงานที่รับ</legend>
+        <legend className="mb-1 text-sm font-medium">{t("categories")}</legend>
         {allCategories.map((category) => (
           <label key={category.slug} className="flex items-center gap-2 text-sm">
             <Checkbox
               checked={categorySlugs.includes(category.slug)}
               onCheckedChange={() => toggleCategory(category.slug)}
             />
-            {category.nameTh}
+            {categoryName(category, locale)}
           </label>
         ))}
       </fieldset>
 
       <Button type="button" className="h-12" disabled={saving} onClick={handleSave}>
-        {saving ? <Loader2 className="animate-spin" /> : "บันทึกโปรไฟล์"}
+        {saving ? <Loader2 className="animate-spin" /> : t("saveProfile")}
       </Button>
 
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
-      {savedAt ? <p className="text-sm text-green-600">บันทึกแล้ว</p> : null}
+      {savedAt ? <p className="text-sm text-green-600">{tCommon("saved")}</p> : null}
     </div>
   );
 }

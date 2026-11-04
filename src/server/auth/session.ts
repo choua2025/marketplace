@@ -1,7 +1,5 @@
 import { headers } from "next/headers";
-import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { profiles } from "@/server/db/schema";
 import type { Actor } from "@/server/lib/actor";
 import { auth } from "./auth";
 
@@ -14,10 +12,10 @@ export async function getActor(): Promise<Actor | null> {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return null;
 
-  const [profile] = await db
-    .select({ role: profiles.role })
-    .from(profiles)
-    .where(eq(profiles.id, session.user.id));
+  const profile = await db.profile.findUnique({
+    where: { id: session.user.id },
+    select: { role: true },
+  });
   if (!profile) return null;
 
   return { id: session.user.id, role: profile.role };

@@ -1,5 +1,27 @@
 import { z } from "zod";
 
+// Shared by the booking form (live checks) and the server (enforcement).
+export const MIN_LEAD_TIME_MS = 60 * 60 * 1000; // start at least 1 hour from now
+export const MAX_LEAD_TIME_MS = 90 * 24 * 60 * 60 * 1000; // ...and at most 90 days ahead
+export const MAX_BOOKING_DURATION_MS = 12 * 60 * 60 * 1000; // same as the bookings_duration DB check
+
+export type BookingTimeProblem = "startTooSoon" | "startTooFar" | "endBeforeStart" | "tooLong";
+
+/** First problem with a start/end pair, or null when the times are acceptable. */
+export function bookingTimeProblem(
+  startAt: Date,
+  endAt: Date,
+  now = Date.now(),
+): BookingTimeProblem | null {
+  const start = startAt.getTime();
+  const end = endAt.getTime();
+  if (start < now + MIN_LEAD_TIME_MS) return "startTooSoon";
+  if (start > now + MAX_LEAD_TIME_MS) return "startTooFar";
+  if (end <= start) return "endBeforeStart";
+  if (end - start > MAX_BOOKING_DURATION_MS) return "tooLong";
+  return null;
+}
+
 export const createBookingSchema = z
   .object({
     providerId: z.string().min(1),
@@ -14,7 +36,7 @@ export const createBookingSchema = z
     message: "endAt must be after startAt",
     path: ["endAt"],
   })
-  .refine((data) => data.endAt.getTime() - data.startAt.getTime() <= 12 * 60 * 60 * 1000, {
+  .refine((data) => data.endAt.getTime() - data.startAt.getTime() <= MAX_BOOKING_DURATION_MS, {
     message: "A booking can't be longer than 12 hours",
     path: ["endAt"],
   });

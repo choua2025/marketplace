@@ -12,6 +12,9 @@ export default getRequestConfig(async ({ requestLocale }) => {
 
   return {
     locale,
+    // Thailand and Laos are both UTC+7. Without this, dates follow the
+    // server clock (UTC in Docker) and booking times show 7 hours off.
+    timeZone: "Asia/Bangkok",
     messages: (await import(`../../messages/${locale}.json`)).default,
   };
 });

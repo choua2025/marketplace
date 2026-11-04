@@ -2,6 +2,7 @@
 
 import { useRouter } from "@/i18n/navigation";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Loader2, Star } from "lucide-react";
 import {
   createReviewAction,
@@ -23,6 +24,7 @@ export function ReviewForm({
   initialRating,
   initialComment,
 }: ReviewFormProps) {
+  const t = useTranslations("review");
   const router = useRouter();
   const [rating, setRating] = useState(initialRating);
   const [comment, setComment] = useState(initialComment);
@@ -48,14 +50,14 @@ export function ReviewForm({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium">คะแนน</span>
+        <span className="text-sm font-medium">{t("rating")}</span>
         <div className="flex gap-1">
           {[1, 2, 3, 4, 5].map((value) => (
             <button
               key={value}
               type="button"
               onClick={() => setRating(value)}
-              aria-label={`${value} ดาว`}
+              aria-label={t("stars", { count: value })}
               className="p-1"
             >
               <Star
@@ -68,25 +70,19 @@ export function ReviewForm({
 
       <div className="flex flex-col gap-2">
         <label htmlFor="comment" className="text-sm font-medium">
-          ความเห็น (ไม่บังคับ)
+          {t("comment")}
         </label>
         <Textarea
           id="comment"
           value={comment}
           onChange={(e) => setComment(e.target.value)}
           rows={4}
-          placeholder="บอกเล่าประสบการณ์การใช้บริการ"
+          placeholder={t("commentPlaceholder")}
         />
       </div>
 
       <Button type="button" className="h-12" disabled={submitting} onClick={handleSubmit}>
-        {submitting ? (
-          <Loader2 className="animate-spin" />
-        ) : reviewId ? (
-          "บันทึกการแก้ไข"
-        ) : (
-          "ส่งรีวิว"
-        )}
+        {submitting ? <Loader2 className="animate-spin" /> : reviewId ? t("saveEdit") : t("submit")}
       </Button>
 
       {error ? <p className="text-destructive text-sm">{error}</p> : null}

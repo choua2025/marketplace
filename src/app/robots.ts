@@ -2,7 +2,19 @@ import type { MetadataRoute } from "next";
 import { env } from "@/server/lib/env";
 import { routing } from "@/i18n/routing";
 
-const PRIVATE_PATHS = ["/bookings", "/messages", "/dashboard", "/login"];
+const PRIVATE_PATHS = [
+  "/bookings",
+  "/messages",
+  "/dashboard",
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/welcome",
+  "/favorites",
+  "/profile",
+  "/admin",
+];
 
 export default function robots(): MetadataRoute.Robots {
   // Disallow rules match literal path prefixes, so each private path needs

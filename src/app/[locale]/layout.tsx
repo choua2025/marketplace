@@ -1,12 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Noto_Sans_Thai } from "next/font/google";
+import { Noto_Sans_Lao, Noto_Sans_Thai } from "next/font/google";
 import { hasLocale, NextIntlClientProvider } from "next-intl";
-import { setRequestLocale } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { routing } from "@/i18n/routing";
-import { LocaleSwitcher } from "@/components/layout/locale-switcher";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { ServiceWorkerRegister } from "@/components/layout/sw-register";
+import { SiteHeader } from "@/components/layout/site-header";
+import { SiteFooter } from "@/components/layout/site-footer";
+import { HideOnAdmin } from "@/components/layout/hide-on-admin";
 import "../globals.css";
 
 const notoSansThai = Noto_Sans_Thai({
@@ -14,12 +15,26 @@ const notoSansThai = Noto_Sans_Thai({
   subsets: ["thai", "latin"],
 });
 
-export const metadata: Metadata = {
-  title: "ช่างดี (ChangDee)",
-  description: "แพลตฟอร์มหาช่างใกล้บ้าน จองงาน แชต และรีวิวได้ในที่เดียว",
-  manifest: "/manifest.webmanifest",
-  appleWebApp: { title: "ช่างดี", statusBarStyle: "default" },
-};
+const notoSansLao = Noto_Sans_Lao({
+  variable: "--font-noto-sans-lao",
+  subsets: ["lao", "latin"],
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "common" });
+
+  return {
+    title: t("metaTitle"),
+    description: t("metaDescription"),
+    manifest: "/manifest.webmanifest",
+    appleWebApp: { title: t("brand"), statusBarStyle: "default" },
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: "#2563EB",
@@ -39,7 +54,13 @@ export default async function RootLayout({ children, params }: LayoutProps<"/[lo
   setRequestLocale(locale);
 
   return (
-    <html lang={locale} className={`${notoSansThai.variable} h-full antialiased`}>
+    // suppressHydrationWarning: the theme script below adds the "dark" class
+    // to <html> before React hydrates. It only covers <html>'s own attributes.
+    <html
+      lang={locale}
+      className={`${notoSansThai.variable} ${notoSansLao.variable} h-full antialiased`}
+      suppressHydrationWarning
+    >
       <head>
         {/* Sets the dark class before paint to avoid a light/dark flash (SPEC.md section 9). */}
         <script
@@ -51,11 +72,13 @@ export default async function RootLayout({ children, params }: LayoutProps<"/[lo
       <body className="flex min-h-full flex-col">
         <NextIntlClientProvider>
           <ServiceWorkerRegister />
-          <div className="flex items-center justify-end gap-2 border-b p-2">
-            <ThemeToggle />
-            <LocaleSwitcher />
-          </div>
-          {children}
+          <HideOnAdmin>
+            <SiteHeader />
+          </HideOnAdmin>
+          <div className="flex flex-1 flex-col">{children}</div>
+          <HideOnAdmin>
+            <SiteFooter />
+          </HideOnAdmin>
         </NextIntlClientProvider>
       </body>
     </html>

@@ -1,8 +1,12 @@
-import { and, desc, eq, lt, or, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { conversations, messages, profiles, providerProfiles } from "@/server/db/schema";
+import { Prisma } from "@/server/db/generated/prisma/client";
 import { AppError } from "@/server/lib/errors";
-import { assertConversationParty, messageColumns, type MessageDto } from "@/server/services/chat";
+import {
+  assertConversationParty,
+  messageSelect,
+  toMessageDto,
+  type MessageDto,
+} from "@/server/services/chat";
 import type { Actor } from "@/server/lib/actor";
 import { listMessagesSchema, MESSAGES_PAGE_SIZE } from "@/lib/validations/chat";
 
@@ -17,23 +21,21 @@ export async function listMessages(
 
   const { cursor } = listMessagesSchema.parse(input);
 
-  const rows = await db
-    .select(messageColumns)
-    .from(messages)
-    .where(
-      and(
-        eq(messages.conversationId, conversationId),
-        cursor !== undefined ? lt(messages.id, cursor) : undefined,
-      ),
-    )
-    .orderBy(desc(messages.id))
-    .limit(MESSAGES_PAGE_SIZE);
+  const rows = await db.message.findMany({
+    where: {
+      conversationId,
+      ...(cursor !== undefined ? { id: { lt: cursor } } : {}),
+    },
+    select: messageSelect,
+    orderBy: { id: "desc" },
+    take: MESSAGES_PAGE_SIZE,
+  });
 
   // `rows` is newest-first; the oldest id in this page is the cursor for
   // the next (older) page. Compute it before reversing -- reverse() mutates
   // in place, so reading from `rows` afterwards would read the wrong end.
-  const nextCursor = rows.length === MESSAGES_PAGE_SIZE ? rows.at(-1)!.id : null;
-  const items = rows.reverse();
+  const nextCursor = rows.length === MESSAGES_PAGE_SIZE ? Number(rows.at(-1)!.id) : null;
+  const items = rows.reverse().map(toMessageDto);
   return { items, nextCursor };
 }
 
@@ -43,43 +45,61 @@ export interface ConversationListItemDto {
   counterpartyName: string;
   lastMessageAt: Date | null;
   lastMessagePreview: string | null;
+  /** Last message is a photo with no text -- the UI shows a localized label. */
+  lastMessageIsImage: boolean;
   unreadCount: number;
 }
 
-/** Inbox list: every conversation `actor` is a party to, newest activity first. */
+interface ConversationListRow {
+  id: string;
+  customerId: string;
+  providerId: string;
+  customerName: string;
+  providerName: string;
+  lastMessageAt: Date | null;
+  lastMessagePreview: string | null;
+  lastMessageIsImage: boolean;
+  unreadCount: bigint;
+}
+
+/**
+ * Inbox list: every conversation `actor` is a party to, newest activity
+ * first. Raw SQL -- "unread count" and "latest message preview" are
+ * per-row correlated subqueries, which Prisma's query builder can't
+ * express (no query-builder equivalent of a lateral/correlated subquery
+ * in a select list).
+ */
 export async function listConversations(actor: Actor | null): Promise<ConversationListItemDto[]> {
   if (!actor) throw new AppError("UNAUTHORIZED");
 
-  const unreadCount = sql<number>`(
-    select count(*) from ${messages}
-    where ${messages.conversationId} = ${conversations.id}
-      and ${messages.senderId} <> ${actor.id}
-      and ${messages.readAt} is null
-  )`.as("unread_count");
-
-  const lastMessagePreview = sql<string | null>`(
-    select coalesce(${messages.body}, 'รูปภาพ') from ${messages}
-    where ${messages.conversationId} = ${conversations.id}
-    order by ${messages.id} desc
-    limit 1
-  )`.as("last_message_preview");
-
-  const rows = await db
-    .select({
-      id: conversations.id,
-      customerId: conversations.customerId,
-      providerId: conversations.providerId,
-      customerName: profiles.fullName,
-      providerName: providerProfiles.displayName,
-      lastMessageAt: conversations.lastMessageAt,
-      lastMessagePreview,
-      unreadCount,
-    })
-    .from(conversations)
-    .innerJoin(profiles, eq(profiles.id, conversations.customerId))
-    .innerJoin(providerProfiles, eq(providerProfiles.id, conversations.providerId))
-    .where(or(eq(conversations.customerId, actor.id), eq(conversations.providerId, actor.id)))
-    .orderBy(desc(conversations.lastMessageAt));
+  const rows = await db.$queryRaw<ConversationListRow[]>(Prisma.sql`
+    SELECT
+      c."id",
+      c."customer_id" AS "customerId",
+      c."provider_id" AS "providerId",
+      p."full_name" AS "customerName",
+      pp."display_name" AS "providerName",
+      c."last_message_at" AS "lastMessageAt",
+      last."body" AS "lastMessagePreview",
+      (last."id" IS NOT NULL AND last."body" IS NULL) AS "lastMessageIsImage",
+      (
+        SELECT COUNT(*) FROM "messages" m
+        WHERE m."conversation_id" = c."id"
+          AND m."sender_id" <> ${actor.id}
+          AND m."read_at" IS NULL
+      ) AS "unreadCount"
+    FROM "conversations" c
+    INNER JOIN "profiles" p ON p."id" = c."customer_id"
+    INNER JOIN "provider_profiles" pp ON pp."id" = c."provider_id"
+    LEFT JOIN LATERAL (
+      SELECT m."id", m."body" FROM "messages" m
+      WHERE m."conversation_id" = c."id"
+      ORDER BY m."id" DESC
+      LIMIT 1
+    ) last ON true
+    WHERE c."customer_id" = ${actor.id} OR c."provider_id" = ${actor.id}
+    ORDER BY c."last_message_at" DESC
+  `);
 
   return rows.map((row) => ({
     id: row.id,
@@ -87,6 +107,7 @@ export async function listConversations(actor: Actor | null): Promise<Conversati
     counterpartyName: actor.id === row.customerId ? row.providerName : row.customerName,
     lastMessageAt: row.lastMessageAt,
     lastMessagePreview: row.lastMessagePreview,
+    lastMessageIsImage: row.lastMessageIsImage,
     unreadCount: Number(row.unreadCount),
   }));
 }
@@ -96,22 +117,21 @@ export async function getConversationDetail(actor: Actor | null, conversationId:
   if (!actor) throw new AppError("UNAUTHORIZED");
   await assertConversationParty(actor, conversationId);
 
-  const [row] = await db
-    .select({
-      customerId: conversations.customerId,
-      providerId: conversations.providerId,
-      customerName: profiles.fullName,
-      providerName: providerProfiles.displayName,
-    })
-    .from(conversations)
-    .innerJoin(profiles, eq(profiles.id, conversations.customerId))
-    .innerJoin(providerProfiles, eq(providerProfiles.id, conversations.providerId))
-    .where(eq(conversations.id, conversationId));
+  const row = await db.conversation.findUnique({
+    where: { id: conversationId },
+    select: {
+      customerId: true,
+      providerId: true,
+      customer: { select: { fullName: true } },
+      provider: { select: { displayName: true } },
+    },
+  });
 
   if (!row) throw new AppError("NOT_FOUND");
 
   return {
     counterpartyId: actor.id === row.customerId ? row.providerId : row.customerId,
-    counterpartyName: actor.id === row.customerId ? row.providerName : row.customerName,
+    counterpartyName:
+      actor.id === row.customerId ? row.provider.displayName : row.customer.fullName,
   };
 }

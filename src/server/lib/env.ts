@@ -25,16 +25,17 @@ const envSchema = z.object({
   TWILIO_ACCOUNT_SID: emptyStringAsUndefined(z.string().min(1).optional()),
   TWILIO_AUTH_TOKEN: emptyStringAsUndefined(z.string().min(1).optional()),
   TWILIO_FROM: emptyStringAsUndefined(z.string().min(1).optional()),
-  // S3-compatible storage (Garage in dev, R2/S3 in prod -- SPEC.md section 4).
-  S3_ENDPOINT: z.url(),
-  S3_REGION: z.string().min(1),
-  S3_ACCESS_KEY_ID: z.string().min(1),
-  S3_SECRET_ACCESS_KEY: z.string().min(1),
-  S3_BUCKET: z.string().min(1),
-  S3_FORCE_PATH_STYLE: z
-    .enum(["true", "false"])
-    .default("true")
-    .transform((v) => v === "true"),
+  // Optional: transactional email (password reset, email verification) via
+  // Resend. Dev prints emails to the console; production fails loudly when a
+  // send is attempted without these. EMAIL_FROM e.g. "ChangDee <no-reply@your-domain>".
+  RESEND_API_KEY: emptyStringAsUndefined(z.string().min(1).optional()),
+  EMAIL_FROM: emptyStringAsUndefined(z.string().min(3).optional()),
+  // File storage (avatars, portfolio, booking/chat photos, verification docs).
+  CLOUDINARY_CLOUD_NAME: z.string().min(1),
+  CLOUDINARY_API_KEY: z.string().min(1),
+  CLOUDINARY_API_SECRET: z.string().min(1),
+  // All uploads go under this folder in the Cloudinary account.
+  CLOUDINARY_FOLDER: emptyStringAsUndefined(z.string().min(1).default("changdee")),
 });
 
 export type Env = z.infer<typeof envSchema>;

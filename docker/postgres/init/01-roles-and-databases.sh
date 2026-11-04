@@ -1,7 +1,7 @@
 #!/bin/bash
 # Runs once, only when the postgres data directory is first initialized.
 # Creates the least-privilege roles required by SPEC.md section 5.7:
-#   - DB_OWNER_USER: owns the app databases, used only by drizzle-kit/migrations/seed (DDL rights)
+#   - DB_OWNER_USER: owns the app databases, used only by prisma migrate/db:migrate/seed (DDL rights)
 #   - DB_APP_USER: used by the running Next.js server at runtime (DML only, no DDL, not superuser)
 # POSTGRES_USER (superuser) is only ever used by this bootstrap script, never by the app.
 set -e

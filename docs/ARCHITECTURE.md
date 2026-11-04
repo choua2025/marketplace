@@ -143,11 +143,11 @@ flowchart LR
     A[Server Action / Route Handler] -->|"getActor() จาก session"| B[Actor | null]
     B --> C["Service function(actor, input)"]
     C --> D{"ตรวจ role/ownership ข้างใน"}
-    D -->|ผ่าน| E["Drizzle query (parameterized)"]
+    D -->|ผ่าน| E["Prisma query (parameterized)"]
     D -->|ไม่ผ่าน| F["throw AppError(code)"]
 ```
 
-- **UI ไม่เรียก Drizzle ตรงๆ** -- ESLint (`no-restricted-imports`) บังคับว่า `@/server/db/*` import
+- **UI ไม่เรียก Prisma ตรงๆ** -- ESLint (`no-restricted-imports`) บังคับว่า `@/server/db/*` import
   ได้แค่จาก `src/server/**`
 - **`role` ไม่รับจาก client โดยตรง** -- `profiles.role` ตั้งค่าเริ่มต้นเป็น `customer` เสมอผ่าน
   Better Auth hook (`databaseHooks.user.create.after`), เปลี่ยนเป็นช่างได้เฉพาะผ่าน `becomeProvider`

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Image as ImageIcon, Loader2, Send } from "lucide-react";
 import { useChatStream, type StreamedMessage } from "@/hooks/useChatStream";
 import {
@@ -27,6 +28,8 @@ export function ChatThread({
   initialMessages,
   initialNextCursor,
 }: ChatThreadProps) {
+  const t = useTranslations("chat");
+  const tErrors = useTranslations("errors");
   const [messages, setMessages] = useState(initialMessages);
   const [nextCursor, setNextCursor] = useState(initialNextCursor);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -121,7 +124,11 @@ export function ChatThread({
         createdAt: new Date(result.data.createdAt).toISOString(),
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "UPLOAD_FAILED");
+      setError(
+        err instanceof Error && err.message !== "UPLOAD_FAILED"
+          ? err.message
+          : tErrors("UPLOAD_FAILED"),
+      );
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -135,12 +142,17 @@ export function ChatThread({
       <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-3">
         {nextCursor !== null ? (
           <Button variant="ghost" size="sm" disabled={loadingOlder} onClick={handleLoadOlder}>
-            {loadingOlder ? <Loader2 className="animate-spin" /> : "โหลดข้อความเก่า"}
+            {loadingOlder ? <Loader2 className="animate-spin" /> : t("loadOlder")}
           </Button>
         ) : null}
 
         {messages.map((message) => (
-          <ChatBubble key={message.id} message={message} isOwn={message.senderId === actorId} />
+          <ChatBubble
+            key={message.id}
+            message={message}
+            isOwn={message.senderId === actorId}
+            imageAlt={t("imageAlt")}
+          />
         ))}
         <div ref={bottomRef} />
       </div>
@@ -159,7 +171,7 @@ export function ChatThread({
           size="icon"
           disabled={uploading}
           onClick={() => fileInputRef.current?.click()}
-          aria-label="ส่งรูปภาพ"
+          aria-label={t("sendImage")}
         >
           {uploading ? <Loader2 className="animate-spin" /> : <ImageIcon className="size-4" />}
         </Button>
@@ -173,7 +185,7 @@ export function ChatThread({
             }
           }}
           rows={1}
-          placeholder="พิมพ์ข้อความ..."
+          placeholder={t("placeholder")}
           className="min-h-12 flex-1 resize-none"
         />
         <Button
@@ -181,7 +193,7 @@ export function ChatThread({
           size="icon"
           disabled={sending || !body.trim()}
           onClick={handleSend}
-          aria-label="ส่งข้อความ"
+          aria-label={t("send")}
         >
           {sending ? <Loader2 className="animate-spin" /> : <Send className="size-4" />}
         </Button>
@@ -192,7 +204,15 @@ export function ChatThread({
   );
 }
 
-function ChatBubble({ message, isOwn }: { message: StreamedMessage; isOwn: boolean }) {
+function ChatBubble({
+  message,
+  isOwn,
+  imageAlt,
+}: {
+  message: StreamedMessage;
+  isOwn: boolean;
+  imageAlt: string;
+}) {
   return (
     <div className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
       <div
@@ -204,7 +224,7 @@ function ChatBubble({ message, isOwn }: { message: StreamedMessage; isOwn: boole
           // eslint-disable-next-line @next/next/no-img-element -- blob previews + signed URLs aren't worth remotePatterns config (see PLAN.md)
           <img
             src={message.imageUrl}
-            alt="รูปภาพที่ส่งในแชต"
+            alt={imageAlt}
             className="mb-1 max-h-60 rounded object-cover"
           />
         ) : null}

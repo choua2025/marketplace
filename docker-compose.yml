@@ -1,4 +1,12 @@
 services:
+  # ===========================================================================
+  # Database layer -- PostgreSQL 16. docker/postgres/init/ bootstraps two
+  # least-privilege roles on first boot (SPEC.md section 5.7):
+  #   - DB_OWNER_USER: DDL rights, used only by `migrate` below and db:seed
+  #   - DB_APP_USER:   DML only, used by the running `app` service
+  # POSTGRES_USER/PASSWORD is the superuser the official image creates; the
+  # app never connects with it directly.
+  # ===========================================================================
   postgres:
     image: postgres:16
     restart: unless-stopped
@@ -22,13 +30,19 @@ services:
       timeout: 5s
       retries: 10
 
-  # Dev-only S3-compatible storage. The official MinIO Docker images were
-  # pulled from every public registry we could find (Docker Hub deleted
-  # them, quay.io/minio and bitnami/minio are unreachable too -- MinIO's
-  # community edition went source-only in 2026). Garage is a maintained,
-  # actively published S3-compatible server, used here as a drop-in dev
-  # replacement; production uses Cloudflare R2/AWS S3 directly either way
-  # (SPEC.md section 4), so the app code never knows the difference.
+  # ===========================================================================
+  # Storage layer -- S3-compatible object storage for avatars/portfolio/
+  # booking/chat images (SPEC.md section 4). Garage here is a dev-only
+  # stand-in; production points the app's S3_* vars at Cloudflare R2/AWS S3
+  # instead and these two services aren't used at all -- app code never
+  # knows the difference either way.
+  #
+  # The official MinIO Docker images were pulled from every public registry
+  # we could find (Docker Hub deleted them, quay.io/minio and bitnami/minio
+  # are unreachable too -- MinIO's community edition went source-only in
+  # 2026). Garage is a maintained, actively published S3-compatible server,
+  # used as the drop-in dev replacement.
+  # ===========================================================================
   garage:
     image: dxflrs/garage:v1.3.1
     restart: unless-stopped
@@ -58,10 +72,88 @@ services:
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
       S3_BUCKET: ${S3_BUCKET}
+      S3_REGION: ${S3_REGION}
+      # Re-used by the `aws` CLI (installed inside init.sh) to set the
+      # bucket's CORS policy -- the browser PUTs presigned upload URLs
+      # directly to Garage, which needs this or every upload 404s/CORS-fails.
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${S3_REGION}
     volumes:
       - ./docker/garage/init.sh:/init.sh:ro
     entrypoint: ["/bin/sh", "/init.sh"]
     restart: "no"
+
+  # ===========================================================================
+  # App layer -- the Next.js app itself (built from ./Dockerfile's "runner"
+  # stage). One process serves both pages (SSR/Server Components) and the
+  # app's few Route Handlers (/api/auth, /api/conversations/.../stream,
+  # /api/health). SPEC.md's architecture deliberately has no separate
+  # frontend/API split -- Server Actions + the service layer in
+  # src/server/services (never reachable directly from the browser) do the
+  # job a separate API would otherwise do.
+  #
+  # Connects to postgres/garage by their in-network service name+port, not
+  # "localhost" -- that only resolves on the host machine, not between
+  # containers. DATABASE_APP_URL/S3_ENDPOINT below intentionally override
+  # whatever host-facing values .env has for local (non-Docker) `pnpm dev`.
+  # ===========================================================================
+  app:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      garage:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      # DB connections are live and long-lived, so this must be the
+      # in-network hostname. S3_ENDPOINT is deliberately NOT overridden
+      # here -- presigned URLs are generated locally (no network call) but
+      # embedded in HTML and fetched by the user's actual browser, which
+      # can't resolve "garage" at all. .env's host-facing S3_ENDPOINT
+      # (reachable by both the server and the browser on the same machine)
+      # is correct for this service too.
+      DATABASE_APP_URL: postgres://${DB_APP_USER}:${DB_APP_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  # ===========================================================================
+  # One-shot migration runner -- applies pending Prisma migrations with the
+  # owner role (DDL rights). Deliberately NOT part of the default
+  # `docker compose up` (SPEC.md section 5.7: DDL is never automatic) --
+  # run it explicitly, same as README.md's VPS deploy steps:
+  #   docker compose run --rm migrate
+  # Reuses the "builder" stage (has the Prisma CLI + full source; "runner"
+  # is pruned down to only what next's standalone output needs and can't
+  # run `prisma migrate deploy`).
+  # ===========================================================================
+  migrate:
+    build:
+      context: .
+      target: builder
+    profiles: ["tools"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${DB_OWNER_USER}:${DB_OWNER_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    command: ["npx", "prisma", "migrate", "deploy"]
 
 volumes:
   postgres-data:

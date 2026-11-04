@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
-import { getLocale } from "next-intl/server";
+import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { Link, redirect } from "@/i18n/navigation";
 import { Star } from "lucide-react";
 import { getActor } from "@/server/auth/session";
 import { getBookingContact, getBookingDetail } from "@/server/services/booking-read";
 import { getReviewForBooking } from "@/server/services/review";
 import { AppError } from "@/server/lib/errors";
+import { categoryName } from "@/lib/category-name";
 import { BookingStatusBadge } from "@/components/booking/booking-status-badge";
 import { BookingActions } from "@/components/booking/booking-actions";
 
@@ -20,8 +21,9 @@ async function loadContact(actor: NonNullable<Awaited<ReturnType<typeof getActor
 
 export default async function BookingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const locale = await getLocale();
   const actor = await getActor();
-  if (!actor) throw redirect({ href: "/login", locale: await getLocale() });
+  if (!actor) throw redirect({ href: "/login", locale });
 
   let booking;
   try {
@@ -35,13 +37,18 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
   const isProvider = booking.providerId === actor.id;
   const contact = await loadContact(actor, id);
   const review = booking.status === "completed" ? await getReviewForBooking(actor, id) : null;
+  const [t, tCommon, format] = await Promise.all([
+    getTranslations("booking"),
+    getTranslations("common"),
+    getFormatter(),
+  ]);
 
   const timeline = [
-    { label: "สร้างคำขอ", at: booking.createdAt },
-    { label: "ยืนยันแล้ว", at: booking.confirmedAt },
-    { label: "เริ่มงาน", at: booking.startedAt },
-    { label: "เสร็จงาน", at: booking.completedAt },
-    { label: "ยกเลิก", at: booking.cancelledAt },
+    { label: t("timelineCreated"), at: booking.createdAt },
+    { label: t("timelineConfirmed"), at: booking.confirmedAt },
+    { label: t("timelineStarted"), at: booking.startedAt },
+    { label: t("timelineCompleted"), at: booking.completedAt },
+    { label: t("timelineCancelled"), at: booking.cancelledAt },
   ].filter((step) => step.at !== null);
 
   return (
@@ -55,45 +62,51 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
 
       <section className="flex flex-col gap-1 rounded-lg border p-3 text-sm">
         <p>
-          <span className="text-muted-foreground">หมวดงาน:</span> {booking.categoryNameTh}
+          <span className="text-muted-foreground">{t("categoryLabel")}:</span>{" "}
+          {categoryName({ nameTh: booking.categoryNameTh, nameEn: booking.categoryNameEn }, locale)}
         </p>
         <p>
-          <span className="text-muted-foreground">เวลา:</span>{" "}
-          {booking.startAt.toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" })} -{" "}
-          {booking.endAt.toLocaleString("th-TH", { timeStyle: "short" })}
+          <span className="text-muted-foreground">{t("timeLabel")}:</span>{" "}
+          {format.dateTime(booking.startAt, { dateStyle: "medium", timeStyle: "short" })} -{" "}
+          {format.dateTime(booking.endAt, { timeStyle: "short" })}
         </p>
         <p>
-          <span className="text-muted-foreground">รายละเอียด:</span> {booking.description}
+          <span className="text-muted-foreground">{t("detailsLabel")}:</span> {booking.description}
         </p>
         <p>
-          <span className="text-muted-foreground">ที่อยู่:</span> {booking.address}
+          <span className="text-muted-foreground">{t("addressShortLabel")}:</span> {booking.address}
         </p>
         {booking.cancelReason ? (
           <p>
-            <span className="text-muted-foreground">เหตุผลที่ยกเลิก:</span> {booking.cancelReason}
+            <span className="text-muted-foreground">{t("cancelReasonLabel")}:</span>{" "}
+            {booking.cancelReason}
           </p>
         ) : null}
       </section>
 
       <section className="rounded-lg border p-3 text-sm">
-        <h2 className="mb-2 font-medium">ข้อมูลติดต่อ</h2>
+        <h2 className="mb-2 font-medium">{t("contactTitle")}</h2>
         {contact ? (
           <div className="flex flex-col gap-1">
-            <p>โทร: {contact.phone ?? "ไม่ระบุ"}</p>
+            <p>
+              {t("phoneLabel")}: {contact.phone ?? tCommon("notSpecified")}
+            </p>
             {contact.lineId ? <p>LINE: {contact.lineId}</p> : null}
           </div>
         ) : (
-          <p className="text-muted-foreground">จะเห็นข้อมูลติดต่อหลังช่างยืนยันงานแล้ว</p>
+          <p className="text-muted-foreground">{t("contactLocked")}</p>
         )}
       </section>
 
       <section>
-        <h2 className="mb-2 font-medium">ไทม์ไลน์</h2>
+        <h2 className="mb-2 font-medium">{t("timelineTitle")}</h2>
         <ul className="text-muted-foreground flex flex-col gap-1 text-sm">
           {timeline.map((step) => (
             <li key={step.label}>
               {step.label}:{" "}
-              {step.at?.toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" })}
+              {step.at
+                ? format.dateTime(step.at, { dateStyle: "medium", timeStyle: "short" })
+                : null}
             </li>
           ))}
         </ul>
@@ -101,7 +114,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
 
       {isCustomer && booking.status === "completed" ? (
         <section className="rounded-lg border p-3 text-sm">
-          <h2 className="mb-2 font-medium">รีวิว</h2>
+          <h2 className="mb-2 font-medium">{t("reviewTitle")}</h2>
           {review ? (
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-1">
@@ -114,12 +127,12 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
               </div>
               {review.comment ? <p>{review.comment}</p> : null}
               <Link href={`/bookings/${booking.id}/review`} className="text-primary underline">
-                แก้ไขรีวิว
+                {t("editReview")}
               </Link>
             </div>
           ) : (
             <Link href={`/bookings/${booking.id}/review`}>
-              <span className="text-primary underline">เขียนรีวิว</span>
+              <span className="text-primary underline">{t("writeReview")}</span>
             </Link>
           )}
         </section>

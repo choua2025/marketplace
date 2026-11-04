@@ -1,0 +1,36 @@
+import { env } from "@/server/lib/env";
+import type { EmailProvider } from "./provider";
+import { ConsoleEmailProvider } from "./console-provider";
+import { ResendEmailProvider } from "./resend-provider";
+
+export type { EmailMessage, EmailProvider } from "./provider";
+
+let provider: EmailProvider | undefined;
+
+/** Test-only escape hatch so integration tests can read the links that were "sent". */
+export function setEmailProviderForTesting(testProvider: EmailProvider): void {
+  if (env.NODE_ENV !== "test") {
+    throw new Error("setEmailProviderForTesting can only be used when NODE_ENV=test");
+  }
+  provider = testProvider;
+}
+
+export function getEmailProvider(): EmailProvider {
+  if (provider) return provider;
+
+  if (env.NODE_ENV === "test") {
+    throw new Error("Call setEmailProviderForTesting() before sending email in tests.");
+  }
+
+  if (env.NODE_ENV !== "development") {
+    if (!env.RESEND_API_KEY || !env.EMAIL_FROM) {
+      // Fail loudly rather than silently pretending to send an email.
+      throw new Error("Email is not configured: set RESEND_API_KEY and EMAIL_FROM.");
+    }
+    provider = new ResendEmailProvider({ apiKey: env.RESEND_API_KEY, from: env.EMAIL_FROM });
+    return provider;
+  }
+
+  provider = new ConsoleEmailProvider();
+  return provider;
+}

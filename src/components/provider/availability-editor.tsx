@@ -2,14 +2,13 @@
 
 import { useRouter } from "@/i18n/navigation";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Loader2 } from "lucide-react";
 import type { AvailabilityRuleDto } from "@/server/services/provider";
 import { setAvailabilityRulesAction } from "@/app/[locale]/(provider)/dashboard/profile/actions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-
-const WEEKDAY_LABELS = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
 
 interface DayState {
   enabled: boolean;
@@ -18,7 +17,7 @@ interface DayState {
 }
 
 function buildInitialState(initialAvailability: AvailabilityRuleDto[]): DayState[] {
-  return WEEKDAY_LABELS.map((_, weekday) => {
+  return Array.from({ length: 7 }, (_, weekday) => {
     const rule = initialAvailability.find((r) => r.weekday === weekday);
     return {
       enabled: Boolean(rule),
@@ -33,6 +32,10 @@ export function AvailabilityEditor({
 }: {
   initialAvailability: AvailabilityRuleDto[];
 }) {
+  const t = useTranslations("dashboard");
+  const tCommon = useTranslations("common");
+  const tWeekdays = useTranslations("weekdays");
+  const dayName = (weekday: number) => tWeekdays(String(weekday));
   const router = useRouter();
   const [days, setDays] = useState<DayState[]>(() => buildInitialState(initialAvailability));
   const [saving, setSaving] = useState(false);
@@ -70,7 +73,7 @@ export function AvailabilityEditor({
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border p-4">
-      <h2 className="font-medium">เวลาทำงานรายสัปดาห์</h2>
+      <h2 className="font-medium">{t("availabilityTitle")}</h2>
       {days.map((day, weekday) => (
         <div key={weekday} className="flex items-center gap-3">
           <label className="flex items-center gap-2">
@@ -78,11 +81,11 @@ export function AvailabilityEditor({
               checked={day.enabled}
               onCheckedChange={(checked) => updateDay(weekday, { enabled: checked === true })}
             />
-            <span className="w-20 text-sm">{WEEKDAY_LABELS[weekday]}</span>
+            <span className="w-24 text-sm">{dayName(weekday)}</span>
           </label>
           <Input
             type="time"
-            aria-label={`เวลาเริ่มงานวัน${WEEKDAY_LABELS[weekday]}`}
+            aria-label={t("startTimeFor", { day: dayName(weekday) })}
             value={day.startTime}
             disabled={!day.enabled}
             onChange={(e) => updateDay(weekday, { startTime: e.target.value })}
@@ -91,7 +94,7 @@ export function AvailabilityEditor({
           <span>-</span>
           <Input
             type="time"
-            aria-label={`เวลาเลิกงานวัน${WEEKDAY_LABELS[weekday]}`}
+            aria-label={t("endTimeFor", { day: dayName(weekday) })}
             value={day.endTime}
             disabled={!day.enabled}
             onChange={(e) => updateDay(weekday, { endTime: e.target.value })}
@@ -101,11 +104,11 @@ export function AvailabilityEditor({
       ))}
 
       <Button type="button" className="h-12" disabled={saving} onClick={handleSave}>
-        {saving ? <Loader2 className="animate-spin" /> : "บันทึกเวลาทำงาน"}
+        {saving ? <Loader2 className="animate-spin" /> : t("saveAvailability")}
       </Button>
 
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
-      {savedAt ? <p className="text-sm text-green-600">บันทึกแล้ว</p> : null}
+      {savedAt ? <p className="text-sm text-green-600">{tCommon("saved")}</p> : null}
     </div>
   );
 }

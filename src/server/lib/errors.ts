@@ -1,13 +1,15 @@
 import th from "../../../messages/th.json";
 import en from "../../../messages/en.json";
+import lo from "../../../messages/lo.json";
 
-const MESSAGES = { th, en } as const;
+const MESSAGES = { th, en, lo } as const;
 export type Locale = keyof typeof MESSAGES;
 
 export const APP_ERROR_HTTP_STATUS = {
   PROVIDER_UNAVAILABLE: 409,
   CATEGORY_NOT_OFFERED: 409,
   INVALID_START_TIME: 400,
+  INVALID_TIME_RANGE: 400,
   OUTSIDE_WORKING_HOURS: 409,
   TOO_MANY_PENDING_BOOKINGS: 409,
   BOOKING_NOT_FOUND: 404,

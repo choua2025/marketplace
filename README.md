@@ -3,7 +3,7 @@
 แพลตฟอร์มสองด้าน (two-sided marketplace) เชื่อมลูกค้ากับช่างบริการในพื้นที่ -- ค้นหา จองงาน แชตแบบ
 real-time และรีวิวได้ในที่เดียว
 
-สแตกหลัก: Next.js 16 (App Router) · TypeScript · PostgreSQL 16 + Drizzle ORM · Better Auth ·
+สแตกหลัก: Next.js 16 (App Router) · TypeScript · PostgreSQL 16 + Prisma ORM · Better Auth ·
 Tailwind v4 + shadcn/ui · next-intl (ไทย/English) · SSE + Postgres `LISTEN/NOTIFY` สำหรับแชต
 
 ดู [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) สำหรับ ER diagram, state machine, การคุมสิทธิ์ และ
@@ -67,30 +67,32 @@ Tailwind v4 + shadcn/ui · next-intl (ไทย/English) · SSE + Postgres `LIST
 
 ### บัญชีตัวอย่างสำหรับ dev
 
-Seed สร้างบัญชีไว้ให้ (`NODE_ENV=development` เท่านั้นที่เปิดให้ล็อกอินด้วยอีเมล/รหัสผ่านตรงๆ
-ในหน้า `/login` -- โหมด production ใช้เบอร์โทร + OTP หรือ Google เท่านั้น):
+Seed สร้างบัญชีไว้ให้ ล็อกอินด้วยอีเมล/รหัสผ่านที่หน้า `/login` (seed ปฏิเสธการรันเมื่อ
+`NODE_ENV=production` เพราะรหัสผ่านเหล่านี้เป็นที่รู้กันทั่วไป):
 
-| บทบาท  | อีเมล                         | รหัสผ่าน      |
-| ------ | ----------------------------- | ------------- |
-| ลูกค้า | `customer1@changdee.test`     | `password123` |
-| ลูกค้า | `customer2@changdee.test`     | `password123` |
-| ช่าง   | `provider1..10@changdee.test` | `password123` |
+| บทบาท  | อีเมล                        | รหัสผ่าน      |
+| ------ | ---------------------------- | ------------- |
+| แอดมิน | `admin@gmail.com`            | `admin123`    |
+| ลูกค้า | `customer1..5@changdee.test` | `password123` |
+| ช่าง   | `provider1..5@changdee.test` | `password123` |
+
+ทุก id เป็น UUID ที่สร้างจากชื่อคงที่ (`src/server/db/seed-ids.ts`) รัน seed ซ้ำได้โดยไม่เกิดข้อมูลซ้ำ
 
 ## คำสั่งที่ใช้บ่อย
 
-| คำสั่ง             | ใช้ทำอะไร                                               |
-| ------------------ | ------------------------------------------------------- |
-| `pnpm dev`         | เซิร์ฟเวอร์ dev (Turbopack)                             |
-| `pnpm build`       | build สำหรับ production (standalone output)             |
-| `pnpm start`       | รันผลลัพธ์จาก `pnpm build`                              |
-| `pnpm lint`        | ESLint                                                  |
-| `pnpm typecheck`   | สร้าง route types แล้วตรวจ TypeScript                   |
-| `pnpm test`        | Integration + unit tests (Vitest, ต้องมี Postgres จริง) |
-| `pnpm test:e2e`    | E2E (Playwright, ต้องมี dev server รันอยู่ก่อน)         |
-| `pnpm db:generate` | สร้าง migration ใหม่จาก schema ที่เปลี่ยน (drizzle-kit) |
-| `pnpm db:migrate`  | รัน migration ที่ยังไม่รัน                              |
-| `pnpm db:seed`     | เติมข้อมูลตัวอย่าง (รันซ้ำได้โดยไม่ error)              |
-| `pnpm db:reset`    | ล้างข้อมูลทุกตารางด้วย `TRUNCATE ... CASCADE`           |
+| คำสั่ง             | ใช้ทำอะไร                                                  |
+| ------------------ | ---------------------------------------------------------- |
+| `pnpm dev`         | เซิร์ฟเวอร์ dev (Turbopack)                                |
+| `pnpm build`       | build สำหรับ production (standalone output)                |
+| `pnpm start`       | รันผลลัพธ์จาก `pnpm build`                                 |
+| `pnpm lint`        | ESLint                                                     |
+| `pnpm typecheck`   | สร้าง route types แล้วตรวจ TypeScript                      |
+| `pnpm test`        | Integration + unit tests (Vitest, ต้องมี Postgres จริง)    |
+| `pnpm test:e2e`    | E2E (Playwright, ต้องมี dev server รันอยู่ก่อน)            |
+| `pnpm db:generate` | สร้าง migration ใหม่จาก schema ที่เปลี่ยน (Prisma Migrate) |
+| `pnpm db:migrate`  | รัน migration ที่ยังไม่รัน                                 |
+| `pnpm db:seed`     | เติมข้อมูลตัวอย่าง (รันซ้ำได้โดยไม่ error)                 |
+| `pnpm db:reset`    | ล้างข้อมูลทุกตารางด้วย `TRUNCATE ... CASCADE`              |
 
 ## การทดสอบ
 
@@ -129,7 +131,27 @@ TLS termination
 (`/api/conversations/[id]/stream`) และ Postgres `LISTEN/NOTIFY` connection ต้องค้างไว้ตลอดอายุของ
 request
 
-### 1. Build และรัน image
+### ทางเลือก: รันทั้ง stack ด้วย `docker compose` เดียว (เหมาะกับ VPS เดียว/ทดสอบทั้งระบบในเครื่อง)
+
+`docker-compose.yml` มี service แยกชัดเจนตามหน้าที่ -- `postgres` (database), `garage`+`garage-init`
+(S3-compatible storage), `app` (ตัวแอป Next.js เอง ให้บริการทั้งหน้าเว็บและ Route Handler ทั้งหมด --
+SPEC.md ตั้งใจไม่แยก frontend/API ออกจากกัน ใช้ Server Actions + service layer แทน):
+
+```bash
+cp .env.example .env   # แก้ค่าให้เป็นค่าจริงสำหรับ production ก่อน (ดูหัวข้อถัดไป)
+docker compose up -d
+docker compose run --rm migrate   # ครั้งแรก และทุกครั้งที่ deploy เวอร์ชันใหม่
+```
+
+`app` เชื่อม `postgres`/`garage` ผ่านชื่อ service ในเครือข่ายภายใน (ไม่ใช่ `localhost`) โดย
+`docker-compose.yml` override `DATABASE_APP_URL`/`S3_ENDPOINT` ให้เองแล้ว ส่วนตัวแปรอื่น (secrets,
+Twilio, Google OAuth) อ่านจาก `.env` ตรงๆ
+
+ถ้าใช้ Cloudflare R2/AWS S3 จริงแทน Garage หรือ PostgreSQL ที่รันแยกไว้ ให้ลบ service `postgres`/
+`garage`/`garage-init` ออกจาก `docker-compose.yml` แล้วตั้ง `S3_*`/`DATABASE_APP_URL` ใน `.env` ให้ชี้
+ไปที่ของจริงแทน -- โค้ดเหมือนกันทุกจุด
+
+### 1. Build และรัน image แยกเอง (ไม่ผ่าน docker-compose)
 
 ```bash
 docker build -t changdee .
@@ -154,7 +176,9 @@ placeholder สำหรับให้ `next build` ผ่าน schema validat
 
 ### 2. Migration (รันครั้งเดียวก่อนเปิดใช้งาน และ **ต้องรันก่อนทุกครั้งที่ deploy เวอร์ชันใหม่** -- ยังไม่ได้อยู่ใน pipeline อัตโนมัติ)
 
-รันจากเครื่องที่เข้าถึง `DATABASE_URL` (role เจ้าของ, สิทธิ์ DDL) ได้ -- ไม่ต้องรันจาก container ของแอป:
+ถ้าใช้ `docker compose` (หัวข้อด้านบน) ใช้ `docker compose run --rm migrate` แทนได้เลย ส่วนนี้สำหรับกรณี
+build/run image แยกเอง -- รันจากเครื่องที่เข้าถึง `DATABASE_URL` (role เจ้าของ, สิทธิ์ DDL) ได้ ไม่ต้องรัน
+จาก container ของแอป:
 
 ```bash
 DATABASE_URL=postgres://changdee_owner:...@db-host:5432/changdee pnpm db:migrate
@@ -212,5 +236,6 @@ server {
   `Content-Security-Policy`, `X-Frame-Options` เป็นต้น -- มาจาก `src/proxy.ts`)
 - เปิดสองแท็บ ล็อกอินเป็นลูกค้า/ช่างคนละคน แชตกันดูว่าข้อความมาแบบ real-time ไม่ต้อง refresh
   (ยืนยันว่า Nginx ไม่ได้ buffer การตอบกลับของ SSE)
-- `pnpm db:seed` รันจากเครื่อง deploy ได้ (ชี้ `DATABASE_URL` ไปที่ DB จริง) ถ้าต้องการข้อมูลตัวอย่าง
-  สำหรับ staging -- **ห้ามรันกับฐานข้อมูล production จริงที่มีผู้ใช้แล้ว**
+- `pnpm db:seed` ใช้กับ staging ได้ (ชี้ `DATABASE_URL` ไปที่ DB staging และตั้ง `NODE_ENV` ที่ไม่ใช่
+  `production`) -- seed จะไม่ยอมรันเมื่อ `NODE_ENV=production` เพราะสร้างบัญชีแอดมินที่รหัสผ่านเป็นที่รู้กัน
+  **ห้ามรันกับฐานข้อมูล production จริง**

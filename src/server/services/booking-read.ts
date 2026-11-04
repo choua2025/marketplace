@@ -1,13 +1,5 @@
-import { and, desc, eq, or } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { bookingColumns } from "@/server/services/booking";
-import {
-  bookings,
-  categories,
-  profileContacts,
-  profiles,
-  providerProfiles,
-} from "@/server/db/schema";
+import { bookingSelect } from "@/server/services/booking";
 import { AppError } from "@/server/lib/errors";
 import type { Actor } from "@/server/lib/actor";
 import type { BookingStatus } from "@/lib/validations/booking";
@@ -15,20 +7,14 @@ import type { BookingStatus } from "@/lib/validations/booking";
 const CONTACT_VISIBLE_STATUSES: BookingStatus[] = ["confirmed", "in_progress", "completed"];
 
 async function loadBookingParties(bookingId: string) {
-  const [booking] = await db
-    .select({
-      id: bookings.id,
-      customerId: bookings.customerId,
-      providerId: bookings.providerId,
-      status: bookings.status,
-    })
-    .from(bookings)
-    .where(eq(bookings.id, bookingId));
-  return booking;
+  return db.booking.findUnique({
+    where: { id: bookingId },
+    select: { id: true, customerId: true, providerId: true, status: true },
+  });
 }
 
 function assertVisible(
-  booking: { customerId: string; providerId: string } | undefined,
+  booking: { customerId: string; providerId: string } | null,
   actor: Actor,
 ): asserts booking {
   if (!booking) throw new AppError("BOOKING_NOT_FOUND");
@@ -58,10 +44,10 @@ export async function getBookingContact(
   }
 
   const otherPartyId = booking.customerId === actor.id ? booking.providerId : booking.customerId;
-  const [contact] = await db
-    .select({ phone: profileContacts.phone, lineId: profileContacts.lineId })
-    .from(profileContacts)
-    .where(eq(profileContacts.id, otherPartyId));
+  const contact = await db.profileContact.findUnique({
+    where: { id: otherPartyId },
+    select: { phone: true, lineId: true },
+  });
 
   return contact ?? { phone: null, lineId: null };
 }
@@ -73,6 +59,8 @@ export interface BookingListItemDto {
   endAt: Date;
   counterpartyName: string;
   categoryNameTh: string;
+  categoryNameEn: string;
+  categoryIcon: string;
 }
 
 /** Bookings where `actor` is the customer or the provider, newest request first. */
@@ -82,36 +70,34 @@ export async function listMyBookings(
 ): Promise<BookingListItemDto[]> {
   if (!actor) throw new AppError("UNAUTHORIZED");
 
-  const rows = await db
-    .select({
-      id: bookings.id,
-      status: bookings.status,
-      startAt: bookings.startAt,
-      endAt: bookings.endAt,
-      categoryNameTh: categories.nameTh,
-      customerId: bookings.customerId,
-      customerName: profiles.fullName,
-      providerName: providerProfiles.displayName,
-    })
-    .from(bookings)
-    .innerJoin(categories, eq(categories.id, bookings.categoryId))
-    .innerJoin(profiles, eq(profiles.id, bookings.customerId))
-    .innerJoin(providerProfiles, eq(providerProfiles.id, bookings.providerId))
-    .where(
-      and(
-        or(eq(bookings.customerId, actor.id), eq(bookings.providerId, actor.id)),
-        status ? eq(bookings.status, status) : undefined,
-      ),
-    )
-    .orderBy(desc(bookings.createdAt));
+  const rows = await db.booking.findMany({
+    where: {
+      OR: [{ customerId: actor.id }, { providerId: actor.id }],
+      ...(status ? { status } : {}),
+    },
+    select: {
+      id: true,
+      status: true,
+      startAt: true,
+      endAt: true,
+      customerId: true,
+      category: { select: { nameTh: true, nameEn: true, icon: true } },
+      customer: { select: { fullName: true } },
+      provider: { select: { displayName: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
 
   return rows.map((row) => ({
     id: row.id,
     status: row.status,
     startAt: row.startAt,
     endAt: row.endAt,
-    categoryNameTh: row.categoryNameTh,
-    counterpartyName: actor.id === row.customerId ? row.providerName : row.customerName,
+    categoryNameTh: row.category.nameTh,
+    categoryNameEn: row.category.nameEn,
+    categoryIcon: row.category.icon,
+    counterpartyName:
+      actor.id === row.customerId ? row.provider.displayName : row.customer.fullName,
   }));
 }
 
@@ -121,19 +107,24 @@ export type BookingDetailDto = Awaited<ReturnType<typeof getBookingDetail>>;
 export async function getBookingDetail(actor: Actor | null, bookingId: string) {
   if (!actor) throw new AppError("UNAUTHORIZED");
 
-  const [row] = await db
-    .select({
-      ...bookingColumns,
-      categoryNameTh: categories.nameTh,
-      customerName: profiles.fullName,
-      providerDisplayName: providerProfiles.displayName,
-    })
-    .from(bookings)
-    .innerJoin(categories, eq(categories.id, bookings.categoryId))
-    .innerJoin(profiles, eq(profiles.id, bookings.customerId))
-    .innerJoin(providerProfiles, eq(providerProfiles.id, bookings.providerId))
-    .where(eq(bookings.id, bookingId));
+  const row = await db.booking.findUnique({
+    where: { id: bookingId },
+    select: {
+      ...bookingSelect,
+      category: { select: { nameTh: true, nameEn: true } },
+      customer: { select: { fullName: true } },
+      provider: { select: { displayName: true } },
+    },
+  });
 
   assertVisible(row, actor);
-  return row;
+
+  const { category, customer, provider, ...booking } = row;
+  return {
+    ...booking,
+    categoryNameTh: category.nameTh,
+    categoryNameEn: category.nameEn,
+    customerName: customer.fullName,
+    providerDisplayName: provider.displayName,
+  };
 }

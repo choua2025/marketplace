@@ -1,55 +1,43 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
 import { createBooking, updateBookingStatus } from "@/server/services/booking";
 import { getBookingContact } from "@/server/services/booking-read";
 import type { Actor } from "@/server/lib/actor";
-import {
-  availabilityRules,
-  categories,
-  providerCategories,
-  providerProfiles,
-  profileContacts,
-  profiles,
-  user,
-} from "@/server/db/schema";
+import { timeStringToDate } from "@/server/lib/pg-time";
 import { resetTestDatabase, testOwnerDb } from "../helpers/db";
 
 const WEEKDAYS_MON_SAT = [1, 2, 3, 4, 5, 6];
 
 async function createProviderWithAvailability(id: string, categorySlug = "electrician") {
-  await testOwnerDb.insert(user).values({ id, name: id, email: `${id}@test.local` });
-  await testOwnerDb.insert(profiles).values({ id, role: "provider", fullName: id });
-  await testOwnerDb.insert(profileContacts).values({ id, phone: "+66820000000" });
-  await testOwnerDb
-    .insert(providerProfiles)
-    .values({ id, displayName: id, isActive: true, latitude: "13.75", longitude: "100.50" });
+  await testOwnerDb.user.create({ data: { id, name: id, email: `${id}@test.local` } });
+  await testOwnerDb.profile.create({ data: { id, role: "provider", fullName: id } });
+  await testOwnerDb.profileContact.create({ data: { id, phone: "+66820000000" } });
+  await testOwnerDb.providerProfile.create({
+    data: { id, displayName: id, isActive: true, latitude: "13.75", longitude: "100.50" },
+  });
 
-  const [category] = await testOwnerDb
-    .select({ id: categories.id })
-    .from(categories)
-    .where(eq(categories.slug, categorySlug));
+  const category = await testOwnerDb.category.findUnique({ where: { slug: categorySlug } });
   if (category) {
-    await testOwnerDb
-      .insert(providerCategories)
-      .values({ providerId: id, categoryId: category.id });
+    await testOwnerDb.providerCategory.create({
+      data: { providerId: id, categoryId: category.id },
+    });
   }
 
-  await testOwnerDb.insert(availabilityRules).values(
-    WEEKDAYS_MON_SAT.map((weekday) => ({
+  await testOwnerDb.availabilityRule.createMany({
+    data: WEEKDAYS_MON_SAT.map((weekday) => ({
       providerId: id,
       weekday,
-      startTime: "08:00:00",
-      endTime: "18:00:00",
+      startTime: timeStringToDate("08:00:00"),
+      endTime: timeStringToDate("18:00:00"),
     })),
-  );
+  });
 
   return { id, role: "provider" as const } satisfies Actor;
 }
 
 async function createCustomerFixture(id: string): Promise<Actor> {
-  await testOwnerDb.insert(user).values({ id, name: id, email: `${id}@test.local` });
-  await testOwnerDb.insert(profiles).values({ id, role: "customer", fullName: id });
-  await testOwnerDb.insert(profileContacts).values({ id, phone: "+66800000000" });
+  await testOwnerDb.user.create({ data: { id, name: id, email: `${id}@test.local` } });
+  await testOwnerDb.profile.create({ data: { id, role: "customer", fullName: id } });
+  await testOwnerDb.profileContact.create({ data: { id, phone: "+66800000000" } });
   return { id, role: "customer" };
 }
 
@@ -91,10 +79,12 @@ function validBookingInput(providerId: string, overrides: Record<string, unknown
 
 beforeEach(async () => {
   await resetTestDatabase();
-  await testOwnerDb.insert(categories).values([
-    { slug: "electrician", nameTh: "ช่างไฟฟ้า", nameEn: "Electrician", icon: "zap" },
-    { slug: "plumber", nameTh: "ช่างประปา", nameEn: "Plumber", icon: "wrench" },
-  ]);
+  await testOwnerDb.category.createMany({
+    data: [
+      { slug: "electrician", nameTh: "ช่างไฟฟ้า", nameEn: "Electrician", icon: "zap" },
+      { slug: "plumber", nameTh: "ช่างประปา", nameEn: "Plumber", icon: "wrench" },
+    ],
+  });
 });
 
 describe("createBooking", () => {
@@ -128,10 +118,10 @@ describe("createBooking", () => {
   it("rejects an inactive provider with PROVIDER_UNAVAILABLE", async () => {
     const provider = await createProviderWithAvailability("prov1");
     const customer = await createCustomerFixture("cust1");
-    await testOwnerDb
-      .update(providerProfiles)
-      .set({ isActive: false })
-      .where(eq(providerProfiles.id, provider.id));
+    await testOwnerDb.providerProfile.update({
+      where: { id: provider.id },
+      data: { isActive: false },
+    });
 
     await expect(createBooking(customer, validBookingInput(provider.id))).rejects.toMatchObject({
       code: "PROVIDER_UNAVAILABLE",
@@ -161,6 +151,38 @@ describe("createBooking", () => {
         }),
       ),
     ).rejects.toMatchObject({ code: "INVALID_START_TIME" });
+  });
+
+  it("rejects a booking longer than 12 hours with a specific error", async () => {
+    const provider = await createProviderWithAvailability("prov1");
+    const customer = await createCustomerFixture("cust1");
+    const startAt = bookableSlot(2, 10);
+
+    await expect(
+      createBooking(
+        customer,
+        validBookingInput(provider.id, {
+          startAt: startAt.toISOString(),
+          endAt: new Date(startAt.getTime() + 48 * 60 * 60 * 1000).toISOString(),
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "INVALID_TIME_RANGE" });
+  });
+
+  it("rejects an end time before the start time with a specific error", async () => {
+    const provider = await createProviderWithAvailability("prov1");
+    const customer = await createCustomerFixture("cust1");
+    const startAt = bookableSlot(2, 10);
+
+    await expect(
+      createBooking(
+        customer,
+        validBookingInput(provider.id, {
+          startAt: startAt.toISOString(),
+          endAt: new Date(startAt.getTime() - 60 * 60 * 1000).toISOString(),
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "INVALID_TIME_RANGE" });
   });
 
   it("rejects a start time more than 90 days away", async () => {
@@ -375,10 +397,10 @@ describe("updateBookingStatus", () => {
     await updateBookingStatus(provider, booking.id, { status: "in_progress" });
     await updateBookingStatus(provider, booking.id, { status: "completed" });
 
-    const [row] = await testOwnerDb
-      .select({ completedJobs: providerProfiles.completedJobs })
-      .from(providerProfiles)
-      .where(eq(providerProfiles.id, provider.id));
+    const row = await testOwnerDb.providerProfile.findUnique({
+      where: { id: provider.id },
+      select: { completedJobs: true },
+    });
     expect(row?.completedJobs).toBe(1);
   });
 });

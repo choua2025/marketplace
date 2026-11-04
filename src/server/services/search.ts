@@ -1,5 +1,5 @@
-import { sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
+import { Prisma } from "@/server/db/generated/prisma/client";
 import type { Actor } from "@/server/lib/actor";
 import { searchProvidersSchema } from "@/lib/validations/search";
 
@@ -31,30 +31,42 @@ export async function searchProviders(
   const params = searchProvidersSchema.parse(input);
 
   const categoryFilter = params.categorySlug
-    ? sql`AND EXISTS (
+    ? Prisma.sql`AND EXISTS (
         SELECT 1 FROM provider_categories pc
         JOIN categories c ON c.id = pc.category_id
         WHERE pc.provider_id = pp.id AND c.slug = ${params.categorySlug}
       )`
-    : sql``;
+    : Prisma.sql``;
 
   const minRatingFilter =
-    params.minRating !== undefined ? sql`AND pp.rating_avg >= ${params.minRating}` : sql``;
+    params.minRating !== undefined
+      ? Prisma.sql`AND pp.rating_avg >= ${params.minRating}`
+      : Prisma.sql``;
 
   const maxPriceFilter =
-    params.maxPrice !== undefined ? sql`AND pp.base_price <= ${params.maxPrice}` : sql``;
+    params.maxPrice !== undefined
+      ? Prisma.sql`AND pp.base_price <= ${params.maxPrice}`
+      : Prisma.sql``;
 
   const orderBy =
     params.sort === "distance"
-      ? sql`"distanceKm" ASC`
+      ? Prisma.sql`"distanceKm" ASC`
       : params.sort === "rating"
-        ? sql`"ratingAvg" DESC, "ratingCount" DESC`
+        ? Prisma.sql`"ratingAvg" DESC, "ratingCount" DESC`
         : params.sort === "price"
-          ? sql`"basePrice" ASC`
+          ? Prisma.sql`"basePrice" ASC`
           : // recommended: verified first, then weighted rating, then distance
-            sql`"isVerified" DESC, (("ratingAvg"::numeric * "ratingCount" + 4.0 * 3) / ("ratingCount" + 3)) DESC, "distanceKm" ASC`;
+            Prisma.sql`"isVerified" DESC, (("ratingAvg"::numeric * "ratingCount" + 4.0 * 3) / ("ratingCount" + 3)) DESC, "distanceKm" ASC`;
 
-  const result = await db.execute<SearchResultDto>(sql`
+  // base_price/rating_avg are NUMERIC columns -- Prisma's $queryRaw returns
+  // those as Decimal objects even for raw SQL, not the plain strings the
+  // `pg` driver alone would give. Converted below to match SearchResultDto.
+  type RawRow = Omit<SearchResultDto, "basePrice" | "ratingAvg"> & {
+    basePrice: Prisma.Decimal;
+    ratingAvg: Prisma.Decimal;
+  };
+
+  const rows = await db.$queryRaw<RawRow[]>(Prisma.sql`
     WITH candidates AS (
       SELECT
         pp.id AS id,
@@ -92,5 +104,59 @@ export async function searchProviders(
     LIMIT ${params.limit} OFFSET ${params.offset}
   `);
 
-  return result.rows;
+  return rows.map((row) => ({
+    ...row,
+    // toFixed, not toString -- Decimal normalizes away trailing zeros
+    // (e.g. "1200" instead of "1200.00").
+    basePrice: row.basePrice.toFixed(2),
+    ratingAvg: row.ratingAvg.toFixed(2),
+  }));
+}
+
+/**
+ * Homepage "recommended pros": active providers, verified first, then by
+ * rating. No location involved, so `distanceKm` is 0 and shouldn't be shown.
+ */
+export async function listFeaturedProviders(
+  _actor: Actor | null,
+  limit = 4,
+): Promise<SearchResultDto[]> {
+  const rows = await db.providerProfile.findMany({
+    where: { isActive: true, latitude: { not: null }, longitude: { not: null } },
+    orderBy: [
+      { isVerified: "desc" },
+      { ratingAvg: "desc" },
+      { ratingCount: "desc" },
+      { id: "asc" },
+    ],
+    take: limit,
+    select: {
+      id: true,
+      displayName: true,
+      basePrice: true,
+      priceUnit: true,
+      areaLabel: true,
+      latitude: true,
+      longitude: true,
+      isVerified: true,
+      ratingAvg: true,
+      ratingCount: true,
+      profile: { select: { avatarKey: true } },
+    },
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    displayName: row.displayName,
+    avatarKey: row.profile.avatarKey,
+    basePrice: row.basePrice.toFixed(2),
+    priceUnit: row.priceUnit,
+    areaLabel: row.areaLabel,
+    latitude: Number(row.latitude!.toFixed(3)),
+    longitude: Number(row.longitude!.toFixed(3)),
+    isVerified: row.isVerified,
+    ratingAvg: row.ratingAvg.toFixed(2),
+    ratingCount: row.ratingCount,
+    distanceKm: 0,
+  }));
 }

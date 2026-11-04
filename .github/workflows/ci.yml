@@ -22,6 +22,13 @@ env:
   DATABASE_APP_URL: postgres://changdee_app:ci_app_password@localhost:5432/changdee
   DATABASE_TEST_URL: postgres://changdee_owner:ci_owner_password@localhost:5432/changdee_test
   DATABASE_TEST_APP_URL: postgres://changdee_app:ci_app_password@localhost:5432/changdee_test
+  # Required by src/server/lib/env.ts at startup. CI-only placeholders: tests
+  # never call Cloudinary (upload signing is local) and never send real mail.
+  BETTER_AUTH_SECRET: ci-test-secret-not-for-production
+  BETTER_AUTH_URL: http://localhost:3000
+  CLOUDINARY_CLOUD_NAME: ci-placeholder
+  CLOUDINARY_API_KEY: ci-placeholder
+  CLOUDINARY_API_SECRET: ci-placeholder
 
 jobs:
   lint-typecheck-test:
@@ -70,10 +77,3 @@ jobs:
         run: pnpm build
         env:
           NODE_ENV: production
-          BETTER_AUTH_SECRET: ci-build-secret
-          BETTER_AUTH_URL: http://localhost:3000
-          S3_ENDPOINT: http://localhost:9000
-          S3_REGION: garage
-          S3_ACCESS_KEY_ID: placeholder
-          S3_SECRET_ACCESS_KEY: placeholder
-          S3_BUCKET: changdee

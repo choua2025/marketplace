@@ -1,44 +1,38 @@
-import { and, count, eq, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import {
-  availabilityRules,
-  bookings,
-  categories,
-  providerCategories,
-  providerProfiles,
-} from "@/server/db/schema";
+import { Prisma } from "@/server/db/generated/prisma/client";
 import { AppError } from "@/server/lib/errors";
 import { getPgErrorCode } from "@/server/lib/db-errors";
+import { dateToTimeString } from "@/server/lib/pg-time";
 import type { Actor } from "@/server/lib/actor";
 import {
   createBookingSchema,
+  MAX_LEAD_TIME_MS,
+  MIN_LEAD_TIME_MS,
   updateBookingStatusSchema,
   type BookingStatus,
 } from "@/lib/validations/booking";
 
-const MIN_LEAD_TIME_MS = 60 * 60 * 1000; // 1 hour
-const MAX_LEAD_TIME_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 const MAX_PENDING_BOOKINGS = 5;
 
-export const bookingColumns = {
-  id: bookings.id,
-  customerId: bookings.customerId,
-  providerId: bookings.providerId,
-  categoryId: bookings.categoryId,
-  status: bookings.status,
-  startAt: bookings.startAt,
-  endAt: bookings.endAt,
-  description: bookings.description,
-  address: bookings.address,
-  photoKeys: bookings.photoKeys,
-  cancelledBy: bookings.cancelledBy,
-  cancelReason: bookings.cancelReason,
-  confirmedAt: bookings.confirmedAt,
-  startedAt: bookings.startedAt,
-  completedAt: bookings.completedAt,
-  cancelledAt: bookings.cancelledAt,
-  createdAt: bookings.createdAt,
-};
+export const bookingSelect = {
+  id: true,
+  customerId: true,
+  providerId: true,
+  categoryId: true,
+  status: true,
+  startAt: true,
+  endAt: true,
+  description: true,
+  address: true,
+  photoKeys: true,
+  cancelledBy: true,
+  cancelReason: true,
+  confirmedAt: true,
+  startedAt: true,
+  completedAt: true,
+  cancelledAt: true,
+  createdAt: true,
+} satisfies Prisma.BookingSelect;
 
 export type BookingDto = Awaited<ReturnType<typeof createBooking>>;
 
@@ -87,36 +81,33 @@ export async function createBooking(actor: Actor | null, input: unknown) {
   if (!actor) throw new AppError("UNAUTHORIZED");
   if (actor.role !== "customer") throw new AppError("FORBIDDEN");
 
-  const parsed = createBookingSchema.parse(input);
+  const result = createBookingSchema.safeParse(input);
+  if (!result.success) {
+    // A bad start/end pair gets its own message instead of the generic
+    // "invalid data", since it's the mistake people actually make.
+    if (result.error.issues.some((issue) => issue.path[0] === "endAt")) {
+      throw new AppError("INVALID_TIME_RANGE");
+    }
+    throw result.error;
+  }
+  const parsed = result.data;
 
-  return db.transaction(async (tx) => {
-    const [provider] = await tx
-      .select({
-        id: providerProfiles.id,
-        isActive: providerProfiles.isActive,
-        timezone: providerProfiles.timezone,
-      })
-      .from(providerProfiles)
-      .where(eq(providerProfiles.id, parsed.providerId))
-      .for("update");
+  return db.$transaction(async (tx) => {
+    const [provider] = await tx.$queryRaw<{ id: string; isActive: boolean; timezone: string }[]>(
+      Prisma.sql`SELECT "id", "is_active" AS "isActive", "timezone" FROM "provider_profiles" WHERE "id" = ${parsed.providerId} FOR UPDATE`,
+    );
 
     if (!provider || !provider.isActive) throw new AppError("PROVIDER_UNAVAILABLE");
 
-    const [category] = await tx
-      .select({ id: categories.id })
-      .from(categories)
-      .where(eq(categories.slug, parsed.categorySlug));
+    const category = await tx.category.findUnique({
+      where: { slug: parsed.categorySlug },
+      select: { id: true },
+    });
     if (!category) throw new AppError("CATEGORY_NOT_OFFERED");
 
-    const [offered] = await tx
-      .select({ categoryId: providerCategories.categoryId })
-      .from(providerCategories)
-      .where(
-        and(
-          eq(providerCategories.providerId, provider.id),
-          eq(providerCategories.categoryId, category.id),
-        ),
-      );
+    const offered = await tx.providerCategory.findUnique({
+      where: { providerId_categoryId: { providerId: provider.id, categoryId: category.id } },
+    });
     if (!offered) throw new AppError("CATEGORY_NOT_OFFERED");
 
     const now = Date.now();
@@ -128,29 +119,26 @@ export async function createBooking(actor: Actor | null, input: unknown) {
     const { weekday, time: startTime } = getLocalWeekdayAndTime(parsed.startAt, provider.timezone);
     const { time: endTime } = getLocalWeekdayAndTime(parsed.endAt, provider.timezone);
 
-    const rules = await tx
-      .select({ startTime: availabilityRules.startTime, endTime: availabilityRules.endTime })
-      .from(availabilityRules)
-      .where(
-        and(eq(availabilityRules.providerId, provider.id), eq(availabilityRules.weekday, weekday)),
-      );
+    const rules = await tx.availabilityRule.findMany({
+      where: { providerId: provider.id, weekday },
+      select: { startTime: true, endTime: true },
+    });
 
     const fitsAvailability = rules.some(
-      (rule) => startTime >= rule.startTime && endTime <= rule.endTime,
+      (rule) =>
+        startTime >= dateToTimeString(rule.startTime) && endTime <= dateToTimeString(rule.endTime),
     );
     if (!fitsAvailability) throw new AppError("OUTSIDE_WORKING_HOURS");
 
-    const [pendingCount] = await tx
-      .select({ value: count() })
-      .from(bookings)
-      .where(and(eq(bookings.customerId, actor.id), eq(bookings.status, "pending")));
-    if ((pendingCount?.value ?? 0) >= MAX_PENDING_BOOKINGS) {
+    const pendingCount = await tx.booking.count({
+      where: { customerId: actor.id, status: "pending" },
+    });
+    if (pendingCount >= MAX_PENDING_BOOKINGS) {
       throw new AppError("TOO_MANY_PENDING_BOOKINGS");
     }
 
-    const [created] = await tx
-      .insert(bookings)
-      .values({
+    return tx.booking.create({
+      data: {
         customerId: actor.id,
         providerId: provider.id,
         categoryId: category.id,
@@ -160,11 +148,9 @@ export async function createBooking(actor: Actor | null, input: unknown) {
         description: parsed.description,
         address: parsed.address,
         photoKeys: parsed.photoKeys,
-      })
-      .returning(bookingColumns);
-
-    if (!created) throw new Error("failed to insert booking");
-    return created;
+      },
+      select: bookingSelect,
+    });
   });
 }
 
@@ -196,13 +182,16 @@ export async function updateBookingStatus(actor: Actor | null, bookingId: string
   if (!actor) throw new AppError("UNAUTHORIZED");
   const parsed = updateBookingStatusSchema.parse(input);
 
-  return db.transaction(async (tx) => {
-    const [booking] = await tx
-      .select(bookingColumns)
-      .from(bookings)
-      .where(eq(bookings.id, bookingId))
-      .for("update");
-    if (!booking) throw new AppError("BOOKING_NOT_FOUND");
+  return db.$transaction(async (tx) => {
+    const [locked] = await tx.$queryRaw<{ id: string }[]>(
+      Prisma.sql`SELECT "id" FROM "bookings" WHERE "id" = ${bookingId} FOR UPDATE`,
+    );
+    if (!locked) throw new AppError("BOOKING_NOT_FOUND");
+
+    const booking = await tx.booking.findUniqueOrThrow({
+      where: { id: bookingId },
+      select: bookingSelect,
+    });
 
     const isCustomer = booking.customerId === actor.id;
     const isProvider = booking.providerId === actor.id;
@@ -219,7 +208,7 @@ export async function updateBookingStatus(actor: Actor | null, bookingId: string
     }
 
     const now = new Date();
-    const patch: Partial<typeof bookings.$inferInsert> = { status: parsed.status };
+    const patch: Prisma.BookingUpdateInput = { status: parsed.status };
     if (parsed.status === "confirmed") patch.confirmedAt = now;
     if (parsed.status === "in_progress") patch.startedAt = now;
     if (parsed.status === "completed") patch.completedAt = now;
@@ -231,22 +220,21 @@ export async function updateBookingStatus(actor: Actor | null, bookingId: string
 
     let updated;
     try {
-      [updated] = await tx
-        .update(bookings)
-        .set(patch)
-        .where(eq(bookings.id, bookingId))
-        .returning(bookingColumns);
+      updated = await tx.booking.update({
+        where: { id: bookingId },
+        data: patch,
+        select: bookingSelect,
+      });
     } catch (error) {
       if (getPgErrorCode(error) === "23P01") throw new AppError("SLOT_TAKEN");
       throw error;
     }
-    if (!updated) throw new Error("failed to update booking");
 
     if (parsed.status === "completed") {
-      await tx
-        .update(providerProfiles)
-        .set({ completedJobs: sql`${providerProfiles.completedJobs} + 1` })
-        .where(eq(providerProfiles.id, booking.providerId));
+      await tx.providerProfile.update({
+        where: { id: booking.providerId },
+        data: { completedJobs: { increment: 1 } },
+      });
     }
 
     return updated;

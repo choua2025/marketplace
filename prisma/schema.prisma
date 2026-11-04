@@ -1,0 +1,376 @@
+// Prisma schema for ChangDee. Baselined from the live dev database (which
+// was built by Drizzle migrations) via `prisma db pull`, then cleaned up to
+// camelCase/PascalCase -- the underlying tables/columns are untouched
+// (every rename is a @map/@@map, not a physical change). Check constraints,
+// the booking exclusion constraint, triggers and the pg_notify function are
+// NOT representable here -- see prisma/migrations/0_init/migration.sql.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/server/db/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Better Auth tables (M2) -- column layout must stay in sync with whatever
+// Better Auth's core + phoneNumber plugin expect.
+// ---------------------------------------------------------------------------
+
+model User {
+  id                  String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  name                String
+  email               String    @unique(map: "user_email_unique")
+  emailVerified       Boolean   @default(false) @map("email_verified")
+  image               String?
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamp(6)
+  phoneNumber         String?   @unique(map: "user_phone_number_unique") @map("phone_number")
+  phoneNumberVerified Boolean?  @map("phone_number_verified")
+  sessions            Session[]
+  accounts            Account[]
+  profile             Profile?
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  expiresAt DateTime @map("expires_at") @db.Timestamp(6)
+  token     String   @unique(map: "session_token_unique")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @map("updated_at") @db.Timestamp(6)
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "session_user_id_user_id_fk")
+
+  @@index([userId], map: "session_userId_idx")
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  userId                String    @map("user_id")
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at") @db.Timestamp(6)
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at") @db.Timestamp(6)
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt             DateTime  @map("updated_at") @db.Timestamp(6)
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "account_user_id_user_id_fk")
+
+  @@index([userId], map: "account_userId_idx")
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expires_at") @db.Timestamp(6)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamp(6)
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// ---------------------------------------------------------------------------
+// App tables (M1+)
+// ---------------------------------------------------------------------------
+
+model Profile {
+  id              String           @id
+  role            Role             @default(customer)
+  fullName        String           @map("full_name") @db.VarChar(100)
+  avatarKey       String?          @map("avatar_key")
+  locale          Locale           @default(th)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user            User             @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "profiles_id_user_id_fk")
+  contact         ProfileContact?
+  providerProfile ProviderProfile?
+  bookings        Booking[]
+  conversations   Conversation[]
+  messages        Message[]
+  reviews         Review[]
+  favorites       Favorite[]
+
+  @@map("profiles")
+}
+
+/// profile_contacts_phone_format check constraint not representable here --
+/// see prisma/migrations/0_init/migration.sql.
+model ProfileContact {
+  id        String   @id
+  phone     String?  @db.VarChar(20)
+  lineId    String?  @map("line_id") @db.VarChar(50)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  profile   Profile  @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "profile_contacts_id_profiles_id_fk")
+
+  @@map("profile_contacts")
+}
+
+/// categories_slug_format check constraint not representable here.
+model Category {
+  id                 Int                @id @default(autoincrement()) @db.SmallInt
+  slug               String             @unique(map: "categories_slug_unique") @db.VarChar(40)
+  nameTh             String             @map("name_th") @db.VarChar(100)
+  nameEn             String             @map("name_en") @db.VarChar(100)
+  icon               String             @db.VarChar(50)
+  sortOrder          Int                @default(0) @map("sort_order")
+  isActive           Boolean            @default(true) @map("is_active")
+  bookings           Booking[]
+  providerCategories ProviderCategory[]
+
+  @@map("categories")
+}
+
+/// provider_profiles_display_name_length / base_price_nonnegative /
+/// service_radius_range / lat_lng_both_or_neither / active_requires_location
+/// check constraints not representable here.
+model ProviderProfile {
+  id                 String             @id
+  displayName        String             @map("display_name") @db.VarChar(80)
+  bio                String?            @db.VarChar(2000)
+  basePrice          Decimal            @default(0) @map("base_price") @db.Decimal(10, 2)
+  priceUnit          PriceUnit          @default(job) @map("price_unit")
+  latitude           Decimal?           @db.Decimal(9, 6)
+  longitude          Decimal?           @db.Decimal(9, 6)
+  areaLabel          String?            @map("area_label") @db.VarChar(200)
+  serviceRadiusKm    Int                @default(10) @map("service_radius_km")
+  timezone           String             @default("Asia/Bangkok") @db.VarChar(50)
+  isActive           Boolean            @default(false) @map("is_active")
+  isVerified         Boolean            @default(false) @map("is_verified")
+  ratingAvg          Decimal            @default(0) @map("rating_avg") @db.Decimal(3, 2)
+  ratingCount        Int                @default(0) @map("rating_count")
+  completedJobs      Int                @default(0) @map("completed_jobs")
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
+  profile            Profile            @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "provider_profiles_id_profiles_id_fk")
+  availabilityRules  AvailabilityRule[]
+  bookings           Booking[]
+  conversations      Conversation[]
+  portfolioItems     PortfolioItem[]
+  providerCategories ProviderCategory[]
+  reviews            Review[]
+  favoritedBy        Favorite[]
+  verification       ProviderVerification?
+
+  @@index([isActive, ratingAvg(sort: Desc)], map: "provider_profiles_active_rating_idx")
+  @@map("provider_profiles")
+}
+
+model ProviderCategory {
+  providerId String          @map("provider_id")
+  categoryId Int             @map("category_id") @db.SmallInt
+  category   Category        @relation(fields: [categoryId], references: [id], onUpdate: NoAction, map: "provider_categories_category_id_categories_id_fk")
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "provider_categories_provider_id_provider_profiles_id_fk")
+
+  @@id([providerId, categoryId], map: "provider_categories_provider_id_category_id_pk")
+  @@index([categoryId], map: "provider_categories_category_idx")
+  @@map("provider_categories")
+}
+
+model PortfolioItem {
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  providerId String          @map("provider_id")
+  imageKey   String          @map("image_key")
+  caption    String?         @db.VarChar(200)
+  sortOrder  Int             @default(0) @map("sort_order")
+  createdAt  DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "portfolio_items_provider_id_provider_profiles_id_fk")
+
+  @@unique([providerId, imageKey], map: "portfolio_items_provider_image_unique")
+  @@map("portfolio_items")
+}
+
+/// availability_rules_weekday_range / end_after_start check constraints not
+/// representable here.
+model AvailabilityRule {
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  providerId String          @map("provider_id")
+  weekday    Int             @db.SmallInt
+  startTime  DateTime        @map("start_time") @db.Time(6)
+  endTime    DateTime        @map("end_time") @db.Time(6)
+  createdAt  DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "availability_rules_provider_id_provider_profiles_id_fk")
+
+  @@unique([providerId, weekday, startTime], map: "availability_rules_provider_weekday_start_unique")
+  @@map("availability_rules")
+}
+
+/// bookings_customer_not_provider / duration / description_length /
+/// address_length / photo_keys_max / cancel_reason_required check
+/// constraints, and the no_double_booking exclusion constraint, are not
+/// representable here -- see prisma/migrations/0_init/migration.sql.
+model Booking {
+  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customerId   String          @map("customer_id")
+  providerId   String          @map("provider_id")
+  categoryId   Int             @map("category_id") @db.SmallInt
+  status       BookingStatus   @default(pending)
+  startAt      DateTime        @map("start_at") @db.Timestamptz(6)
+  endAt        DateTime        @map("end_at") @db.Timestamptz(6)
+  description  String          @db.VarChar(2000)
+  address      String          @db.VarChar(300)
+  latitude     Decimal?        @db.Decimal(9, 6)
+  longitude    Decimal?        @db.Decimal(9, 6)
+  photoKeys    String[]        @default([]) @map("photo_keys")
+  cancelledBy  CancelledBy?    @map("cancelled_by")
+  cancelReason String?         @map("cancel_reason") @db.VarChar(500)
+  confirmedAt  DateTime?       @map("confirmed_at") @db.Timestamptz(6)
+  startedAt    DateTime?       @map("started_at") @db.Timestamptz(6)
+  completedAt  DateTime?       @map("completed_at") @db.Timestamptz(6)
+  cancelledAt  DateTime?       @map("cancelled_at") @db.Timestamptz(6)
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
+  category     Category        @relation(fields: [categoryId], references: [id], onUpdate: NoAction, map: "bookings_category_id_categories_id_fk")
+  customer     Profile         @relation(fields: [customerId], references: [id], onUpdate: NoAction, map: "bookings_customer_id_profiles_id_fk")
+  provider     ProviderProfile @relation(fields: [providerId], references: [id], onUpdate: NoAction, map: "bookings_provider_id_provider_profiles_id_fk")
+  review       Review?
+
+  @@index([customerId, startAt(sort: Desc)], map: "bookings_customer_start_idx")
+  @@index([providerId, startAt(sort: Desc)], map: "bookings_provider_start_idx")
+  @@index([providerId, status], map: "bookings_provider_status_idx")
+  @@map("bookings")
+}
+
+model Conversation {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customerId    String          @map("customer_id")
+  providerId    String          @map("provider_id")
+  lastMessageAt DateTime?       @map("last_message_at") @db.Timestamptz(6)
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
+  customer      Profile         @relation(fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "conversations_customer_id_profiles_id_fk")
+  provider      ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "conversations_provider_id_provider_profiles_id_fk")
+  messages      Message[]
+
+  @@unique([customerId, providerId], map: "conversations_customer_provider_unique")
+  @@map("conversations")
+}
+
+/// messages_body_or_image_required check constraint not representable here.
+model Message {
+  id             BigInt       @id @default(autoincrement())
+  conversationId String       @map("conversation_id") @db.Uuid
+  senderId       String       @map("sender_id")
+  body           String?      @db.VarChar(2000)
+  imageKey       String?      @map("image_key")
+  readAt         DateTime?    @map("read_at") @db.Timestamptz(6)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @default(now()) @map("updated_at") @db.Timestamptz(6)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "messages_conversation_id_conversations_id_fk")
+  sender         Profile      @relation(fields: [senderId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "messages_sender_id_profiles_id_fk")
+
+  @@index([conversationId, id(sort: Desc)], map: "messages_conversation_id_idx")
+  @@map("messages")
+}
+
+/// reviews_rating_range check constraint not representable here.
+model Review {
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingId  String          @unique(map: "reviews_booking_id_unique") @map("booking_id") @db.Uuid
+  customerId String          @map("customer_id")
+  providerId String          @map("provider_id")
+  rating     Int             @db.SmallInt
+  comment    String?         @db.VarChar(1000)
+  createdAt  DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
+  booking    Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "reviews_booking_id_bookings_id_fk")
+  customer   Profile         @relation(fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "reviews_customer_id_profiles_id_fk")
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "reviews_provider_id_provider_profiles_id_fk")
+
+  @@index([providerId, createdAt(sort: Desc)], map: "reviews_provider_created_idx")
+  @@map("reviews")
+}
+
+model Favorite {
+  customerId String          @map("customer_id")
+  providerId String          @map("provider_id")
+  createdAt  DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  customer   Profile         @relation(fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "favorites_customer_id_profiles_id_fk")
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "favorites_provider_id_provider_profiles_id_fk")
+
+  @@id([customerId, providerId], map: "favorites_customer_id_provider_id_pk")
+  @@index([providerId], map: "favorites_provider_idx")
+  @@map("favorites")
+}
+
+/// A provider's current identity/business verification request. One row
+/// per provider -- resubmitting after a rejection overwrites it and resets
+/// status to pending (SPEC has no concept of a verification history log).
+model ProviderVerification {
+  providerId      String             @id @map("provider_id")
+  documentKeys    String[]           @default([]) @map("document_keys")
+  note            String?            @db.VarChar(500)
+  status          VerificationStatus @default(pending)
+  submittedAt     DateTime           @default(now()) @map("submitted_at") @db.Timestamptz(6)
+  reviewedAt      DateTime?          @map("reviewed_at") @db.Timestamptz(6)
+  reviewedBy      String?            @map("reviewed_by")
+  rejectionReason String?            @map("rejection_reason") @db.VarChar(500)
+  provider        ProviderProfile    @relation(fields: [providerId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "provider_verifications_provider_id_provider_profiles_id_fk")
+
+  @@index([status, submittedAt], map: "provider_verifications_status_submitted_idx")
+  @@map("provider_verifications")
+}
+
+enum Role {
+  customer
+  provider
+  admin
+
+  @@map("role")
+}
+
+enum Locale {
+  th
+  en
+
+  @@map("locale")
+}
+
+enum PriceUnit {
+  job
+  hour
+  day
+
+  @@map("price_unit")
+}
+
+enum BookingStatus {
+  pending
+  confirmed
+  in_progress
+  completed
+  cancelled
+
+  @@map("booking_status")
+}
+
+enum CancelledBy {
+  customer
+  provider
+
+  @@map("cancelled_by")
+}
+
+enum VerificationStatus {
+  pending
+  approved
+  rejected
+
+  @@map("verification_status")
+}

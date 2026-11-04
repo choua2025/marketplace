@@ -1,12 +1,5 @@
+import { useTranslations } from "next-intl";
 import type { BookingStatus } from "@/lib/validations/booking";
-
-const STATUS_LABEL: Record<BookingStatus, string> = {
-  pending: "รออนุมัติ",
-  confirmed: "ยืนยันแล้ว",
-  in_progress: "กำลังทำงาน",
-  completed: "เสร็จแล้ว",
-  cancelled: "ยกเลิก",
-};
 
 const STATUS_CLASS: Record<BookingStatus, string> = {
   pending: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
@@ -17,9 +10,10 @@ const STATUS_CLASS: Record<BookingStatus, string> = {
 };
 
 export function BookingStatusBadge({ status }: { status: BookingStatus }) {
+  const t = useTranslations("bookingStatus");
   return (
     <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_CLASS[status]}`}>
-      {STATUS_LABEL[status]}
+      {t(status)}
     </span>
   );
 }

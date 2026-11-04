@@ -1,1 +1,0 @@
-ALTER TABLE "portfolio_items" ADD CONSTRAINT "portfolio_items_provider_image_unique" UNIQUE("provider_id","image_key");

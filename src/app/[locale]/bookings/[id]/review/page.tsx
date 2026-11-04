@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getLocale } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 import { getActor } from "@/server/auth/session";
 import { getBookingDetail } from "@/server/services/booking-read";
@@ -25,12 +25,15 @@ export default async function WriteReviewPage({ params }: { params: Promise<{ id
     throw redirect({ href: `/bookings/${bookingId}`, locale });
   }
 
-  const existingReview = await getReviewForBooking(actor, bookingId);
+  const [existingReview, t] = await Promise.all([
+    getReviewForBooking(actor, bookingId),
+    getTranslations("review"),
+  ]);
 
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-4 p-4 pb-12">
       <h1 className="text-xl font-bold">
-        {existingReview ? "แก้ไขรีวิว" : "เขียนรีวิว"} {booking.providerDisplayName}
+        {t(existingReview ? "editTitle" : "writeTitle", { name: booking.providerDisplayName })}
       </h1>
       <ReviewForm
         bookingId={bookingId}

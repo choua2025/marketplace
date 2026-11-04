@@ -29,4 +29,15 @@ $G key import --yes -n changdee-app "$S3_ACCESS_KEY_ID" "$S3_SECRET_ACCESS_KEY" 
 $G bucket create "$S3_BUCKET" || true
 $G bucket allow "$S3_BUCKET" --key changdee-app --read --write --owner
 
-echo "Garage initialized: bucket '${S3_BUCKET}' ready."
+# Uploads are presigned PUT URLs the *browser* sends straight to Garage
+# (SPEC.md section 7.9) -- without a CORS policy on the bucket, every one
+# of those cross-origin PUTs fails preflight and the upload silently never
+# completes. The garage CLI has no `bucket cors` subcommand, so this uses
+# the AWS CLI against Garage's S3-compatible API instead (same network
+# namespace as the `garage` service, hence 127.0.0.1).
+apk add --no-cache aws-cli >/dev/null
+aws --endpoint-url http://127.0.0.1:3900 s3api put-bucket-cors \
+  --bucket "$S3_BUCKET" \
+  --cors-configuration '{"CORSRules":[{"AllowedOrigins":["*"],"AllowedMethods":["GET","PUT","HEAD"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]}'
+
+echo "Garage initialized: bucket '${S3_BUCKET}' ready (CORS configured)."

@@ -2,11 +2,13 @@
 
 import { useRouter } from "@/i18n/navigation";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Loader2, MessageCircle } from "lucide-react";
 import { startConversationAction } from "@/app/[locale]/messages/actions";
 import { Button } from "@/components/ui/button";
 
 export function StartChatButton({ providerId }: { providerId: string }) {
+  const t = useTranslations("provider");
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +35,7 @@ export function StartChatButton({ providerId }: { providerId: string }) {
         onClick={handleClick}
       >
         {loading ? <Loader2 className="animate-spin" /> : <MessageCircle className="size-4" />}
-        แชทกับช่างนี้
+        {t("startChat")}
       </Button>
       {error ? <p className="text-destructive text-xs">{error}</p> : null}
     </div>

@@ -1,46 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-type Theme = "light" | "dark";
-
-function applyTheme(theme: Theme) {
-  document.documentElement.classList.toggle("dark", theme === "dark");
-  localStorage.setItem("theme", theme);
-}
-
-// The inline script in the root layout already sets the `dark` class
-// before hydration, so reading it here (instead of via an effect) gives
-// the right icon on the client's first render -- no setState-in-effect
-// needed. SSR has no `document`, hence the fallback; the resulting
-// hydration mismatch is cosmetic only (the page's actual theme comes from
-// the `dark` class, not from this component's state).
-function readTheme(): Theme {
-  if (typeof document === "undefined") return "light";
-  return document.documentElement.classList.contains("dark") ? "dark" : "light";
-}
-
+// Both icons and labels are rendered and the `dark` class (set before paint
+// by the root layout's inline script) picks which one shows. Choosing them
+// in JS instead would make the server and client HTML differ in dark mode,
+// and React then re-renders the whole page on hydration.
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>(readTheme);
+  const t = useTranslations("header");
 
   function toggle() {
-    const next: Theme = theme === "dark" ? "light" : "dark";
-    applyTheme(next);
-    setTheme(next);
+    const isDark = document.documentElement.classList.toggle("dark");
+    localStorage.setItem("theme", isDark ? "dark" : "light");
   }
 
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      suppressHydrationWarning
-      aria-label={theme === "dark" ? "สลับเป็นโหมดสว่าง" : "สลับเป็นโหมดมืด"}
-      onClick={toggle}
-    >
-      {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+    <Button type="button" variant="ghost" size="icon" onClick={toggle}>
+      <Moon className="size-4 dark:hidden" aria-hidden="true" />
+      <Sun className="hidden size-4 dark:block" aria-hidden="true" />
+      <span className="sr-only dark:hidden">{t("toDarkMode")}</span>
+      <span className="sr-only hidden dark:inline">{t("toLightMode")}</span>
     </Button>
   );
 }

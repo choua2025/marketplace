@@ -17,7 +17,7 @@ export async function loginAsDevUser(page: Page, email: string): Promise<void> {
     await page.goto("/login");
     await page.getByLabel("อีเมล").fill(email);
     await page.getByLabel("รหัสผ่าน").fill(DEV_PASSWORD);
-    await page.getByRole("button", { name: "เข้าสู่ระบบ (dev)" }).click();
+    await page.getByRole("button", { name: "เข้าสู่ระบบ", exact: true }).click();
 
     const loggedIn = await page
       .waitForURL("**/", { timeout: 8000 })

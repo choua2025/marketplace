@@ -1,34 +1,22 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
 import { getPgErrorCode } from "@/server/lib/db-errors";
 import { resetTestDatabase, testDb } from "../helpers/db";
-import {
-  bookings,
-  categories,
-  conversations,
-  messages,
-  profiles,
-  providerProfiles,
-  reviews,
-  user,
-} from "@/server/db/schema";
 
 async function createUserChain(id: string, role: "customer" | "provider") {
-  await testDb.insert(user).values({ id, name: id, email: `${id}@test.local` });
-  await testDb.insert(profiles).values({ id, role, fullName: id });
+  await testDb.user.create({ data: { id, name: id, email: `${id}@test.local` } });
+  await testDb.profile.create({ data: { id, role, fullName: id } });
   if (role === "provider") {
-    await testDb
-      .insert(providerProfiles)
-      .values({ id, displayName: id, isActive: true, latitude: "13.75", longitude: "100.50" });
+    await testDb.providerProfile.create({
+      data: { id, displayName: id, isActive: true, latitude: "13.75", longitude: "100.50" },
+    });
   }
 }
 
 async function createCategory(slug: string): Promise<number> {
-  const [row] = await testDb
-    .insert(categories)
-    .values({ slug, nameTh: slug, nameEn: slug, icon: "zap" })
-    .returning({ id: categories.id });
-  if (!row) throw new Error("failed to insert category");
+  const row = await testDb.category.create({
+    data: { slug, nameTh: slug, nameEn: slug, icon: "zap" },
+    select: { id: true },
+  });
   return row.id;
 }
 
@@ -42,28 +30,32 @@ describe("no_double_booking exclusion constraint", () => {
     await createUserChain("prov1", "provider");
     const categoryId = await createCategory("electrician");
 
-    await testDb.insert(bookings).values({
-      customerId: "cust1",
-      providerId: "prov1",
-      categoryId,
-      status: "confirmed",
-      startAt: new Date("2026-11-01T10:00:00+07:00"),
-      endAt: new Date("2026-11-01T12:00:00+07:00"),
-      description: "First confirmed booking for overlap test",
-      address: "123 Test Rd, Bangkok",
-    });
-
-    let caught: unknown;
-    try {
-      await testDb.insert(bookings).values({
+    await testDb.booking.create({
+      data: {
         customerId: "cust1",
         providerId: "prov1",
         categoryId,
         status: "confirmed",
-        startAt: new Date("2026-11-01T11:00:00+07:00"),
-        endAt: new Date("2026-11-01T13:00:00+07:00"),
-        description: "Overlapping confirmed booking for the same provider",
+        startAt: new Date("2026-11-01T10:00:00+07:00"),
+        endAt: new Date("2026-11-01T12:00:00+07:00"),
+        description: "First confirmed booking for overlap test",
         address: "123 Test Rd, Bangkok",
+      },
+    });
+
+    let caught: unknown;
+    try {
+      await testDb.booking.create({
+        data: {
+          customerId: "cust1",
+          providerId: "prov1",
+          categoryId,
+          status: "confirmed",
+          startAt: new Date("2026-11-01T11:00:00+07:00"),
+          endAt: new Date("2026-11-01T13:00:00+07:00"),
+          description: "Overlapping confirmed booking for the same provider",
+          address: "123 Test Rd, Bangkok",
+        },
       });
     } catch (error) {
       caught = error;
@@ -77,31 +69,35 @@ describe("no_double_booking exclusion constraint", () => {
     await createUserChain("prov1", "provider");
     const categoryId = await createCategory("electrician");
 
-    await testDb.insert(bookings).values({
-      customerId: "cust1",
-      providerId: "prov1",
-      categoryId,
-      status: "pending",
-      startAt: new Date("2026-11-01T10:00:00+07:00"),
-      endAt: new Date("2026-11-01T12:00:00+07:00"),
-      description: "First pending booking for overlap test",
-      address: "123 Test Rd, Bangkok",
-    });
-
-    await expect(
-      testDb.insert(bookings).values({
+    await testDb.booking.create({
+      data: {
         customerId: "cust1",
         providerId: "prov1",
         categoryId,
         status: "pending",
-        startAt: new Date("2026-11-01T11:00:00+07:00"),
-        endAt: new Date("2026-11-01T13:00:00+07:00"),
-        description: "Second overlapping pending booking, should be allowed",
+        startAt: new Date("2026-11-01T10:00:00+07:00"),
+        endAt: new Date("2026-11-01T12:00:00+07:00"),
+        description: "First pending booking for overlap test",
         address: "123 Test Rd, Bangkok",
+      },
+    });
+
+    await expect(
+      testDb.booking.create({
+        data: {
+          customerId: "cust1",
+          providerId: "prov1",
+          categoryId,
+          status: "pending",
+          startAt: new Date("2026-11-01T11:00:00+07:00"),
+          endAt: new Date("2026-11-01T13:00:00+07:00"),
+          description: "Second overlapping pending booking, should be allowed",
+          address: "123 Test Rd, Bangkok",
+        },
       }),
     ).resolves.toBeDefined();
 
-    const rows = await testDb.select().from(bookings).where(eq(bookings.providerId, "prov1"));
+    const rows = await testDb.booking.findMany({ where: { providerId: "prov1" } });
     expect(rows).toHaveLength(2);
   });
 
@@ -110,27 +106,31 @@ describe("no_double_booking exclusion constraint", () => {
     await createUserChain("prov1", "provider");
     const categoryId = await createCategory("electrician");
 
-    await testDb.insert(bookings).values({
-      customerId: "cust1",
-      providerId: "prov1",
-      categoryId,
-      status: "confirmed",
-      startAt: new Date("2026-11-01T10:00:00+07:00"),
-      endAt: new Date("2026-11-01T12:00:00+07:00"),
-      description: "First confirmed booking, non-overlap test",
-      address: "123 Test Rd, Bangkok",
-    });
-
-    await expect(
-      testDb.insert(bookings).values({
+    await testDb.booking.create({
+      data: {
         customerId: "cust1",
         providerId: "prov1",
         categoryId,
         status: "confirmed",
-        startAt: new Date("2026-11-01T12:00:00+07:00"),
-        endAt: new Date("2026-11-01T14:00:00+07:00"),
-        description: "Second confirmed booking right after, should be allowed",
+        startAt: new Date("2026-11-01T10:00:00+07:00"),
+        endAt: new Date("2026-11-01T12:00:00+07:00"),
+        description: "First confirmed booking, non-overlap test",
         address: "123 Test Rd, Bangkok",
+      },
+    });
+
+    await expect(
+      testDb.booking.create({
+        data: {
+          customerId: "cust1",
+          providerId: "prov1",
+          categoryId,
+          status: "confirmed",
+          startAt: new Date("2026-11-01T12:00:00+07:00"),
+          endAt: new Date("2026-11-01T14:00:00+07:00"),
+          description: "Second confirmed booking right after, should be allowed",
+          address: "123 Test Rd, Bangkok",
+        },
       }),
     ).resolves.toBeDefined();
   });
@@ -138,9 +138,8 @@ describe("no_double_booking exclusion constraint", () => {
 
 describe("provider rating trigger", () => {
   async function createCompletedBooking(id: string, categoryId: number) {
-    const [row] = await testDb
-      .insert(bookings)
-      .values({
+    const row = await testDb.booking.create({
+      data: {
         id,
         customerId: "cust1",
         providerId: "prov1",
@@ -150,9 +149,9 @@ describe("provider rating trigger", () => {
         endAt: new Date("2026-11-01T12:00:00+07:00"),
         description: "Completed booking used as the review's basis",
         address: "123 Test Rd, Bangkok",
-      })
-      .returning({ id: bookings.id });
-    if (!row) throw new Error("failed to insert booking");
+      },
+      select: { id: true },
+    });
     return row.id;
   }
 
@@ -170,46 +169,33 @@ describe("provider rating trigger", () => {
       categoryId,
     );
 
-    await testDb
-      .insert(reviews)
-      .values({ bookingId: bookingId1, customerId: "cust1", providerId: "prov1", rating: 5 });
+    await testDb.review.create({
+      data: { bookingId: bookingId1, customerId: "cust1", providerId: "prov1", rating: 5 },
+    });
 
-    let [providerRow] = await testDb
-      .select()
-      .from(providerProfiles)
-      .where(eq(providerProfiles.id, "prov1"));
-    expect(providerRow?.ratingAvg).toBe("5.00");
+    let providerRow = await testDb.providerProfile.findUnique({ where: { id: "prov1" } });
+    expect(providerRow?.ratingAvg.toFixed(2)).toBe("5.00");
     expect(providerRow?.ratingCount).toBe(1);
 
-    const [review2] = await testDb
-      .insert(reviews)
-      .values({ bookingId: bookingId2, customerId: "cust1", providerId: "prov1", rating: 3 })
-      .returning({ id: reviews.id });
-    if (!review2) throw new Error("failed to insert second review");
+    const review2 = await testDb.review.create({
+      data: { bookingId: bookingId2, customerId: "cust1", providerId: "prov1", rating: 3 },
+      select: { id: true },
+    });
 
-    [providerRow] = await testDb
-      .select()
-      .from(providerProfiles)
-      .where(eq(providerProfiles.id, "prov1"));
-    expect(providerRow?.ratingAvg).toBe("4.00");
+    providerRow = await testDb.providerProfile.findUnique({ where: { id: "prov1" } });
+    expect(providerRow?.ratingAvg.toFixed(2)).toBe("4.00");
     expect(providerRow?.ratingCount).toBe(2);
 
-    await testDb.update(reviews).set({ rating: 1 }).where(eq(reviews.id, review2.id));
+    await testDb.review.update({ where: { id: review2.id }, data: { rating: 1 } });
 
-    [providerRow] = await testDb
-      .select()
-      .from(providerProfiles)
-      .where(eq(providerProfiles.id, "prov1"));
-    expect(providerRow?.ratingAvg).toBe("3.00");
+    providerRow = await testDb.providerProfile.findUnique({ where: { id: "prov1" } });
+    expect(providerRow?.ratingAvg.toFixed(2)).toBe("3.00");
     expect(providerRow?.ratingCount).toBe(2);
 
-    await testDb.delete(reviews).where(eq(reviews.id, review2.id));
+    await testDb.review.delete({ where: { id: review2.id } });
 
-    [providerRow] = await testDb
-      .select()
-      .from(providerProfiles)
-      .where(eq(providerProfiles.id, "prov1"));
-    expect(providerRow?.ratingAvg).toBe("5.00");
+    providerRow = await testDb.providerProfile.findUnique({ where: { id: "prov1" } });
+    expect(providerRow?.ratingAvg.toFixed(2)).toBe("5.00");
     expect(providerRow?.ratingCount).toBe(1);
   });
 });
@@ -219,28 +205,21 @@ describe("chat notify trigger", () => {
     await createUserChain("cust1", "customer");
     await createUserChain("prov1", "provider");
 
-    const [conversation] = await testDb
-      .insert(conversations)
-      .values({ customerId: "cust1", providerId: "prov1" })
-      .returning({ id: conversations.id });
-    if (!conversation) throw new Error("failed to insert conversation");
+    const conversation = await testDb.conversation.create({
+      data: { customerId: "cust1", providerId: "prov1" },
+      select: { id: true },
+    });
     expect(conversation.id).toBeDefined();
 
-    const before = await testDb
-      .select()
-      .from(conversations)
-      .where(eq(conversations.id, conversation.id));
-    expect(before[0]?.lastMessageAt).toBeNull();
+    const before = await testDb.conversation.findUnique({ where: { id: conversation.id } });
+    expect(before?.lastMessageAt).toBeNull();
 
-    await testDb
-      .insert(messages)
-      .values({ conversationId: conversation.id, senderId: "cust1", body: "Hello!" });
+    await testDb.message.create({
+      data: { conversationId: conversation.id, senderId: "cust1", body: "Hello!" },
+    });
 
-    const after = await testDb
-      .select()
-      .from(conversations)
-      .where(eq(conversations.id, conversation.id));
-    expect(after[0]?.lastMessageAt).not.toBeNull();
+    const after = await testDb.conversation.findUnique({ where: { id: conversation.id } });
+    expect(after?.lastMessageAt).not.toBeNull();
   });
 });
 
@@ -248,23 +227,17 @@ describe("updated_at trigger", () => {
   it("bumps updated_at on update", async () => {
     await createUserChain("prov1", "provider");
 
-    const [before] = await testDb
-      .select()
-      .from(providerProfiles)
-      .where(eq(providerProfiles.id, "prov1"));
+    const before = await testDb.providerProfile.findUnique({ where: { id: "prov1" } });
     if (!before) throw new Error("provider profile not found");
 
     await new Promise((resolve) => setTimeout(resolve, 10));
 
-    await testDb
-      .update(providerProfiles)
-      .set({ bio: "Updated bio for the trigger test" })
-      .where(eq(providerProfiles.id, "prov1"));
+    await testDb.providerProfile.update({
+      where: { id: "prov1" },
+      data: { bio: "Updated bio for the trigger test" },
+    });
 
-    const [after] = await testDb
-      .select()
-      .from(providerProfiles)
-      .where(eq(providerProfiles.id, "prov1"));
+    const after = await testDb.providerProfile.findUnique({ where: { id: "prov1" } });
     if (!after) throw new Error("provider profile not found after update");
 
     expect(after.updatedAt.getTime()).toBeGreaterThan(before.updatedAt.getTime());
