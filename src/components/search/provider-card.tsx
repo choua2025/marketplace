@@ -1,6 +1,6 @@
 import { Link } from "@/i18n/navigation";
 import Image from "next/image";
-import { BadgeCheck, Star } from "lucide-react";
+import { BadgeCheck, BriefcaseBusiness, Star } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { SearchResultWithAvatarDto } from "@/app/[locale]/(public)/search/actions";
 import { FavoriteButton } from "@/components/provider/favorite-button";
@@ -78,6 +78,12 @@ export function ProviderCard({
           {provider.areaLabel ??
             (showDistance ? `${provider.distanceKm.toFixed(1)} ${t("km")}` : " ")}
         </span>
+        {provider.experienceYears !== null ? (
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <BriefcaseBusiness className="size-3.5 shrink-0" aria-hidden />
+            {t("experience", { count: provider.experienceYears })}
+          </span>
+        ) : null}
         <div className="mt-auto flex items-baseline justify-between pt-2">
           <span className="font-semibold">
             {Number(provider.basePrice).toLocaleString()} {t("currency")}

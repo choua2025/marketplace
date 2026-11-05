@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_EXPERIENCE_YEARS } from "@/lib/experience";
 
 export const priceUnitSchema = z.enum(["job", "hour", "day"]);
 
@@ -22,6 +23,8 @@ export const updateProviderProfileSchema = z
     latitude: z.coerce.number().min(-90).max(90).optional(),
     longitude: z.coerce.number().min(-180).max(180).optional(),
     serviceRadiusKm: z.coerce.number().int().min(1).max(200),
+    /** Optional; left out (or blank in the form) clears it. */
+    experienceYears: z.coerce.number().int().min(0).max(MAX_EXPERIENCE_YEARS).optional(),
     isActive: z.boolean(),
   })
   .refine((data) => (data.latitude === undefined) === (data.longitude === undefined), {

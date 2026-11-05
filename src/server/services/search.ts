@@ -2,6 +2,7 @@ import { db } from "@/server/db/client";
 import { Prisma } from "@/server/db/generated/prisma/client";
 import type { Actor } from "@/server/lib/actor";
 import { searchProvidersSchema } from "@/lib/validations/search";
+import { experienceYears } from "@/lib/experience";
 
 export type SearchResultDto = {
   id: string;
@@ -13,6 +14,7 @@ export type SearchResultDto = {
   latitude: number;
   longitude: number;
   isVerified: boolean;
+  experienceYears: number | null;
   ratingAvg: string;
   ratingCount: number;
   distanceKm: number;
@@ -61,9 +63,10 @@ export async function searchProviders(
   // base_price/rating_avg are NUMERIC columns -- Prisma's $queryRaw returns
   // those as Decimal objects even for raw SQL, not the plain strings the
   // `pg` driver alone would give. Converted below to match SearchResultDto.
-  type RawRow = Omit<SearchResultDto, "basePrice" | "ratingAvg"> & {
+  type RawRow = Omit<SearchResultDto, "basePrice" | "ratingAvg" | "experienceYears"> & {
     basePrice: Prisma.Decimal;
     ratingAvg: Prisma.Decimal;
+    experienceSinceYear: number | null;
   };
 
   const rows = await db.$queryRaw<RawRow[]>(Prisma.sql`
@@ -78,6 +81,7 @@ export async function searchProviders(
         ROUND(pp.latitude::numeric, 3)::float8 AS latitude,
         ROUND(pp.longitude::numeric, 3)::float8 AS longitude,
         pp.is_verified AS "isVerified",
+        pp.experience_since_year AS "experienceSinceYear",
         pp.rating_avg AS "ratingAvg",
         pp.rating_count AS "ratingCount",
         pp.service_radius_km AS "serviceRadiusKm",
@@ -97,19 +101,21 @@ export async function searchProviders(
     )
     SELECT
       id, "displayName", "avatarKey", "basePrice", "priceUnit", "areaLabel",
-      latitude, longitude, "isVerified", "ratingAvg", "ratingCount", "distanceKm"
+      latitude, longitude, "isVerified", "experienceSinceYear", "ratingAvg", "ratingCount",
+      "distanceKm"
     FROM candidates
     WHERE "distanceKm" <= ${params.maxKm} AND "distanceKm" <= "serviceRadiusKm"
     ORDER BY ${orderBy}
     LIMIT ${params.limit} OFFSET ${params.offset}
   `);
 
-  return rows.map((row) => ({
+  return rows.map(({ experienceSinceYear, ...row }) => ({
     ...row,
     // toFixed, not toString -- Decimal normalizes away trailing zeros
     // (e.g. "1200" instead of "1200.00").
     basePrice: row.basePrice.toFixed(2),
     ratingAvg: row.ratingAvg.toFixed(2),
+    experienceYears: experienceYears(experienceSinceYear),
   }));
 }
 
@@ -139,6 +145,7 @@ export async function listFeaturedProviders(
       latitude: true,
       longitude: true,
       isVerified: true,
+      experienceSinceYear: true,
       ratingAvg: true,
       ratingCount: true,
       profile: { select: { avatarKey: true } },
@@ -155,6 +162,7 @@ export async function listFeaturedProviders(
     latitude: Number(row.latitude!.toFixed(3)),
     longitude: Number(row.longitude!.toFixed(3)),
     isVerified: row.isVerified,
+    experienceYears: experienceYears(row.experienceSinceYear),
     ratingAvg: row.ratingAvg.toFixed(2),
     ratingCount: row.ratingCount,
     distanceKm: 0,

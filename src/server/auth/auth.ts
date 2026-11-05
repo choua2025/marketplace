@@ -6,9 +6,10 @@ import { prismaAdapter } from "@better-auth/prisma-adapter";
 import { db } from "@/server/db/client";
 import { env } from "@/server/lib/env";
 import { getSmsProvider } from "@/server/sms";
-import { sendAuthEmail } from "@/server/email/auth-emails";
+import { sendAuthEmail, type Locale } from "@/server/email/auth-emails";
 import { checkRateLimit } from "@/server/lib/rate-limit";
 import { normalizePhone, PHONE_PATTERN } from "@/lib/validations/profile";
+import { isGooglePhotoUrl } from "@/lib/google-photo";
 
 const googleEnabled = Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
 
@@ -19,6 +20,37 @@ function badRequest(code: string, message: string): APIError {
 function tempEmailForPhoneSignUp(phoneNumber: string): string {
   const digitsOnly = phoneNumber.replace(/[^0-9]/g, "");
   return `phone-${digitsOnly}@changdee.local`;
+}
+
+function loginUrl(locale: Locale): string {
+  return `${env.APP_URL}${locale === "th" ? "" : `/${locale}`}/login`;
+}
+
+/**
+ * Accounts made with "Continue with Google" have no password. Following a
+ * reset link would quietly add one, so they get a "sign in with Google"
+ * email (linking to the login page) instead of a reset link. The page the
+ * user sees is the same either way.
+ */
+async function sendPasswordResetEmail(
+  user: { id: string; email: string; name: string },
+  resetUrl: string,
+  request?: Request,
+): Promise<void> {
+  try {
+    const hasPassword =
+      (await db.account.count({ where: { userId: user.id, providerId: "credential" } })) > 0;
+    if (hasPassword) {
+      sendAuthEmail("resetPassword", user, resetUrl, request);
+    } else {
+      sendAuthEmail("useGoogle", user, loginUrl, request);
+    }
+  } catch (error) {
+    console.error(
+      "[email] resetPassword email failed:",
+      error instanceof Error ? error.message : error,
+    );
+  }
 }
 
 export const auth = betterAuth({
@@ -45,7 +77,8 @@ export const auth = betterAuth({
     // A reset logs out every other session, in case someone else got in.
     revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }, request) => {
-      sendAuthEmail("resetPassword", user, url, request);
+      // Not awaited, like sendAuthEmail: the extra lookup mustn't slow the answer.
+      void sendPasswordResetEmail(user, url, request);
     },
   },
   emailVerification: {
@@ -109,6 +142,25 @@ export const auth = betterAuth({
         after: async (user) => {
           if (!user.name) return;
           await db.profile.update({ where: { id: user.id }, data: { fullName: user.name } });
+        },
+      },
+    },
+    session: {
+      create: {
+        // Google sign-ins: show the Google profile picture until the user
+        // uploads their own. Done at every sign-in (not just sign-up) so
+        // accounts created before this existed get it too.
+        after: async (session) => {
+          const user = await db.user.findUnique({
+            where: { id: session.userId },
+            select: { image: true },
+          });
+          const image = user?.image;
+          if (!image || !isGooglePhotoUrl(image)) return;
+          await db.profile.updateMany({
+            where: { id: session.userId, avatarKey: null },
+            data: { avatarKey: image },
+          });
         },
       },
     },

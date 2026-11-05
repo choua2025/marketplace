@@ -139,32 +139,35 @@ model Category {
 /// service_radius_range / lat_lng_both_or_neither / active_requires_location
 /// check constraints not representable here.
 model ProviderProfile {
-  id                 String             @id
-  displayName        String             @map("display_name") @db.VarChar(80)
-  bio                String?            @db.VarChar(2000)
-  basePrice          Decimal            @default(0) @map("base_price") @db.Decimal(10, 2)
-  priceUnit          PriceUnit          @default(job) @map("price_unit")
-  latitude           Decimal?           @db.Decimal(9, 6)
-  longitude          Decimal?           @db.Decimal(9, 6)
-  areaLabel          String?            @map("area_label") @db.VarChar(200)
-  serviceRadiusKm    Int                @default(10) @map("service_radius_km")
-  timezone           String             @default("Asia/Bangkok") @db.VarChar(50)
-  isActive           Boolean            @default(false) @map("is_active")
-  isVerified         Boolean            @default(false) @map("is_verified")
-  ratingAvg          Decimal            @default(0) @map("rating_avg") @db.Decimal(3, 2)
-  ratingCount        Int                @default(0) @map("rating_count")
-  completedJobs      Int                @default(0) @map("completed_jobs")
-  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
-  profile            Profile            @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "provider_profiles_id_profiles_id_fk")
-  availabilityRules  AvailabilityRule[]
-  bookings           Booking[]
-  conversations      Conversation[]
-  portfolioItems     PortfolioItem[]
-  providerCategories ProviderCategory[]
-  reviews            Review[]
-  favoritedBy        Favorite[]
-  verification       ProviderVerification?
+  id                  String                @id
+  displayName         String                @map("display_name") @db.VarChar(80)
+  bio                 String?               @db.VarChar(2000)
+  basePrice           Decimal               @default(0) @map("base_price") @db.Decimal(10, 2)
+  priceUnit           PriceUnit             @default(job) @map("price_unit")
+  latitude            Decimal?              @db.Decimal(9, 6)
+  longitude           Decimal?              @db.Decimal(9, 6)
+  areaLabel           String?               @map("area_label") @db.VarChar(200)
+  serviceRadiusKm     Int                   @default(10) @map("service_radius_km")
+  /// Year the provider started in this trade (self-reported). Stored as a year, not a
+  /// count, so "years of experience" stays current without the provider re-entering it.
+  experienceSinceYear Int?                  @map("experience_since_year") @db.SmallInt
+  timezone            String                @default("Asia/Bangkok") @db.VarChar(50)
+  isActive            Boolean               @default(false) @map("is_active")
+  isVerified          Boolean               @default(false) @map("is_verified")
+  ratingAvg           Decimal               @default(0) @map("rating_avg") @db.Decimal(3, 2)
+  ratingCount         Int                   @default(0) @map("rating_count")
+  completedJobs       Int                   @default(0) @map("completed_jobs")
+  createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime              @default(now()) @map("updated_at") @db.Timestamptz(6)
+  profile             Profile               @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "provider_profiles_id_profiles_id_fk")
+  availabilityRules   AvailabilityRule[]
+  bookings            Booking[]
+  conversations       Conversation[]
+  portfolioItems      PortfolioItem[]
+  providerCategories  ProviderCategory[]
+  reviews             Review[]
+  favoritedBy         Favorite[]
+  verification        ProviderVerification?
 
   @@index([isActive, ratingAvg(sort: Desc)], map: "provider_profiles_active_rating_idx")
   @@map("provider_profiles")

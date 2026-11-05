@@ -204,6 +204,33 @@ describe("updateProviderProfile", () => {
     expect(updated.isActive).toBe(true);
     expect(updated.latitude).toBe("13.750000");
   });
+
+  it("stores experience as a start year and clears it when left out", async () => {
+    const provider = await createProviderFixture("prov1");
+    const base = { displayName: "Shop", basePrice: 100, priceUnit: "job", serviceRadiusKm: 10 };
+
+    const withExperience = await updateProviderProfile(provider, {
+      ...base,
+      isActive: false,
+      experienceYears: 8,
+    });
+    expect(withExperience.experienceYears).toBe(8);
+    const row = await testOwnerDb.providerProfile.findUniqueOrThrow({ where: { id: provider.id } });
+    expect(row.experienceSinceYear).toBe(new Date().getFullYear() - 8);
+
+    const cleared = await updateProviderProfile(provider, { ...base, isActive: false });
+    expect(cleared.experienceYears).toBeNull();
+  });
+
+  it("rejects experience outside 0-60 years", async () => {
+    const provider = await createProviderFixture("prov1");
+    const base = { displayName: "Shop", basePrice: 100, priceUnit: "job", serviceRadiusKm: 10 };
+    for (const experienceYears of [-1, 61, 2.5]) {
+      await expect(
+        updateProviderProfile(provider, { ...base, isActive: false, experienceYears }),
+      ).rejects.toBeInstanceOf(ZodError);
+    }
+  });
 });
 
 describe("setProviderCategories", () => {

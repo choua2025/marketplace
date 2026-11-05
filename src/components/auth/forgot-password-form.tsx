@@ -74,6 +74,7 @@ export function ForgotPasswordForm() {
               >
                 {state === "sending" ? <Loader2 className="animate-spin" /> : t("sendResetLink")}
               </Button>
+              <p className="text-center text-xs text-muted-foreground">{t("forgotGoogleHint")}</p>
             </form>
           )}
         </CardContent>

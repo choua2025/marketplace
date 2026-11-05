@@ -3,7 +3,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
-import { BadgeCheck, MapPin, Star } from "lucide-react";
+import { BadgeCheck, BriefcaseBusiness, MapPin, Star } from "lucide-react";
 import { getPublicProviderProfile } from "@/server/services/provider";
 import { getSignedImageUrl } from "@/server/services/upload";
 import { listProviderReviews } from "@/server/services/review";
@@ -142,6 +142,12 @@ export default async function ProviderProfilePage({ params }: { params: Promise<
                   <p className="text-muted-foreground flex items-center gap-1 text-sm">
                     <MapPin className="size-3.5 shrink-0" />
                     <span className="truncate">{profile.areaLabel}</span>
+                  </p>
+                ) : null}
+                {profile.experienceYears !== null ? (
+                  <p className="text-muted-foreground flex items-center gap-1 text-sm">
+                    <BriefcaseBusiness className="size-3.5 shrink-0" aria-hidden />
+                    {tCommon("experience", { count: profile.experienceYears })}
                   </p>
                 ) : null}
               </div>

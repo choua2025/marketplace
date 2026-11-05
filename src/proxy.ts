@@ -1,6 +1,7 @@
 import createMiddleware from "next-intl/middleware";
 import { NextResponse, type NextRequest } from "next/server";
 import { routing } from "./i18n/routing";
+import { GOOGLE_PHOTO_IMG_SRC } from "./lib/google-photo";
 
 const intlMiddleware = createMiddleware(routing);
 
@@ -24,8 +25,9 @@ function withSecurityHeaders(response: NextResponse): NextResponse {
     // (e.g. the provider verification form, which batches several
     // documents before a single final submit) -- scoped to the page that
     // created it, never a network fetch.
-    // tile.openstreetmap.org serves the Leaflet map tiles (a/b/c subdomains).
-    `img-src 'self' data: blob: https://*.tile.openstreetmap.org ${STORAGE_IMG_SRC}`,
+    // tile.openstreetmap.org serves the Leaflet map tiles (a/b/c subdomains);
+    // googleusercontent.com, the profile pictures of Google sign-ins.
+    `img-src 'self' data: blob: https://*.tile.openstreetmap.org ${STORAGE_IMG_SRC} ${GOOGLE_PHOTO_IMG_SRC}`,
     `connect-src 'self' ${STORAGE_CONNECT_SRC}`,
     // The inline theme script and JSON-LD <script> tags need
     // 'unsafe-inline' since there's no per-request nonce wired up here --

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Loader2, MapPin } from "lucide-react";
 import { categoryName } from "@/lib/category-name";
+import { MAX_EXPERIENCE_YEARS } from "@/lib/experience";
 import type { ProviderProfileDto } from "@/server/services/provider";
 import type { CategoryDto } from "@/server/services/category";
 import {
@@ -49,6 +50,9 @@ export function ProviderProfileForm({
   const [latitude, setLatitude] = useState(initialProfile.latitude ?? "");
   const [longitude, setLongitude] = useState(initialProfile.longitude ?? "");
   const [serviceRadiusKm, setServiceRadiusKm] = useState(initialProfile.serviceRadiusKm);
+  const [experienceYears, setExperienceYears] = useState(
+    initialProfile.experienceYears?.toString() ?? "",
+  );
   const [isActive, setIsActive] = useState(initialProfile.isActive);
   const [categorySlugs, setCategorySlugs] = useState<string[]>(initialCategorySlugs);
 
@@ -83,6 +87,7 @@ export function ProviderProfileForm({
       latitude: latitude === "" ? undefined : Number(latitude),
       longitude: longitude === "" ? undefined : Number(longitude),
       serviceRadiusKm,
+      experienceYears: experienceYears.trim() === "" ? undefined : Number(experienceYears),
       isActive,
     });
 
@@ -119,6 +124,26 @@ export function ProviderProfileForm({
       <div className="flex flex-col gap-2">
         <Label htmlFor="bio">{t("bio")}</Label>
         <Textarea id="bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={4} />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="experienceYears">{t("experienceYears")}</Label>
+        <Input
+          id="experienceYears"
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={MAX_EXPERIENCE_YEARS}
+          step={1}
+          value={experienceYears}
+          onChange={(e) => setExperienceYears(e.target.value)}
+          placeholder={t("experiencePlaceholder")}
+          aria-describedby="experienceYearsHint"
+          className="h-12"
+        />
+        <p id="experienceYearsHint" className="text-muted-foreground text-xs">
+          {t("experienceHint")}
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

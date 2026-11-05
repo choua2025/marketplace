@@ -2,7 +2,7 @@
 
 import { ClipboardList, Menu, MessageCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { Link, usePathname } from "@/i18n/navigation";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { UnreadBadge, useUnreadMessages } from "@/components/layout/unread-messages";
 import { Button } from "@/components/ui/button";
@@ -68,11 +68,23 @@ export function HeaderNav({ items }: { items: NavItem[] }) {
   );
 }
 
-/** Icon buttons beside the profile picture (My bookings, Messages); phones get them in MobileNav. */
+/**
+ * Icon buttons beside the profile picture (My bookings, Messages); phones get them in MobileNav.
+ * They toggle: clicking the one whose section you're in takes you back to the home page.
+ */
 export function HeaderShortcuts({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
+  const router = useRouter();
   const t = useTranslations("header");
   const unread = useUnreadMessages();
+
+  function handleClick(e: React.MouseEvent<HTMLAnchorElement>, active: boolean) {
+    // Let ctrl/cmd/shift/middle clicks open the link in a new tab as usual.
+    if (!active || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    router.push("/");
+  }
+
   return (
     <div className="hidden items-center gap-0.5 sm:flex">
       {items.map((item) => {
@@ -92,6 +104,7 @@ export function HeaderShortcuts({ items }: { items: NavItem[] }) {
               aria-label={label}
               title={label}
               aria-current={active ? "page" : undefined}
+              onClick={(e) => handleClick(e, active)}
             >
               <NavIcon name={item.icon} className="size-5" />
               <UnreadBadge count={count} className="absolute -top-0.5 -right-0.5" />

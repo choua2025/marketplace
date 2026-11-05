@@ -8,6 +8,7 @@ import {
   createSignedViewUrl,
 } from "@/server/storage/cloudinary";
 import { createUploadUrlSchema } from "@/lib/validations/upload";
+import { isGooglePhotoUrl } from "@/lib/google-photo";
 
 const EXTENSION_BY_CONTENT_TYPE: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -116,6 +117,8 @@ export async function removePortfolioItem(actor: Actor | null, itemId: string): 
 /** For rendering: converts a stored key into a viewable URL. */
 export async function getSignedImageUrl(key: string | null): Promise<string | null> {
   if (!key) return null;
+  // A Google sign-in's profile picture, kept until the user uploads their own.
+  if (isGooglePhotoUrl(key)) return key;
   const purpose = key.slice(0, key.indexOf("/"));
   return PUBLIC_PURPOSES.has(purpose)
     ? createSignedViewUrl(key)

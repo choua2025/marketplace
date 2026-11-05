@@ -32,6 +32,20 @@ describe("buildAuthEmail", () => {
     expect(th.text).toContain("สวัสดีคุณ แอน");
   });
 
+  it("writes the Google sign-in email without an expiry line", () => {
+    const loginUrl = "http://localhost:3000/en/login";
+    const email = buildAuthEmail("useGoogle", {
+      to: "a@b.test",
+      name: "Ann",
+      url: loginUrl,
+      locale: "en",
+    });
+    expect(email.subject).toBe("Sign in with Google - ChangDee");
+    expect(email.text).toContain(loginUrl);
+    expect(email.text).not.toContain("\n\n\n");
+    expect(email.html).not.toMatch(/expire/i);
+  });
+
   it("escapes HTML in the user's name", () => {
     const email = buildAuthEmail("verifyEmail", {
       to: "a@b.test",

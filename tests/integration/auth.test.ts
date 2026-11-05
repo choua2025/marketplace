@@ -262,6 +262,32 @@ describe("email verification", () => {
   });
 });
 
+describe("Google profile picture", () => {
+  const photo = "https://lh3.googleusercontent.com/a/ACg8ocExample=s96-c";
+
+  async function googleUser(image: string | null, avatarKey: string | null = null) {
+    await testOwnerDb.user.create({
+      data: { id: "g1", name: "G", email: "g1@changdee.test", emailVerified: true, image },
+    });
+    await testOwnerDb.profile.create({ data: { id: "g1", fullName: "G", avatarKey } });
+    // A sign-in, as far as the hooks are concerned.
+    await (await auth.$context).internalAdapter.createSession("g1");
+    return (await testOwnerDb.profile.findUniqueOrThrow({ where: { id: "g1" } })).avatarKey;
+  }
+
+  it("becomes the avatar when signing in without an uploaded photo", async () => {
+    expect(await googleUser(photo)).toBe(photo);
+  });
+
+  it("never replaces a photo the user uploaded", async () => {
+    expect(await googleUser(photo, "avatar/g1/own.jpg")).toBe("avatar/g1/own.jpg");
+  });
+
+  it("ignores an image that isn't a Google profile picture", async () => {
+    expect(await googleUser("https://evil.example/x.png")).toBeNull();
+  });
+});
+
 describe("forgot password", () => {
   const email = "forgetful@changdee.test";
 
@@ -310,6 +336,30 @@ describe("forgot password", () => {
     expect(unknown).toEqual(known);
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(mail.sent.filter((m) => m.to === "nobody-here@changdee.test")).toHaveLength(0);
+  });
+
+  it("sends a Google-only account a 'sign in with Google' email instead of a reset link", async () => {
+    const googleEmail = "google-only@changdee.test";
+    await testOwnerDb.user.create({
+      data: {
+        id: "google-user",
+        name: "Googler",
+        email: googleEmail,
+        emailVerified: true,
+        accounts: {
+          create: { accountId: "google-sub-1", providerId: "google", updatedAt: new Date() },
+        },
+      },
+    });
+
+    const answer = await requestReset(googleEmail);
+    expect(answer).toEqual(await requestReset(email)); // same answer as a password account
+
+    const link = await mail.lastLinkTo(googleEmail);
+    expect(link.pathname).toBe("/login");
+    const message = mail.sent.find((m) => m.to === googleEmail)!;
+    expect(message.text).not.toContain("/reset-password/");
+    expect(message.subject).toContain("Google");
   });
 
   it("logs out other sessions after a reset", async () => {

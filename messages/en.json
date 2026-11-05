@@ -10,6 +10,7 @@
     "priceUnitDay": "per day",
     "currency": "THB",
     "km": "km",
+    "experience": "{count, plural, =0 {Under 1 year of experience} one {# year of experience} other {# years of experience}}",
     "saved": "Saved",
     "removePhoto": "Remove this photo",
     "notSpecified": "Not provided"
@@ -386,6 +387,9 @@
     "coordinates": "Coordinates: {lat}, {lng}",
     "noCoordinates": "No location set yet (required before going live)",
     "serviceRadius": "Service radius (km)",
+    "experienceYears": "Experience (years)",
+    "experiencePlaceholder": "e.g. 5",
+    "experienceHint": "How many years you've done this work (optional). It goes up by itself each year.",
     "isActive": "Accepting jobs (shown in search)",
     "categories": "Services offered",
     "saveProfile": "Save profile",
@@ -461,7 +465,10 @@
     "resetButton": "Reset password",
     "resetExpiry": "This link works for 1 hour and can be used once.",
     "linkFallback": "If the button doesn't work, copy this link into your browser:",
-    "ignoreNote": "If you didn't request this, you can ignore this email. Your account is safe."
+    "ignoreNote": "If you didn't request this, you can ignore this email. Your account is safe.",
+    "googleSubject": "Sign in with Google",
+    "googleIntro": "We got a request to reset your password, but this account was created with Google, so it has no password. Click the button below and choose \"Continue with Google\" to sign in.",
+    "googleButton": "Go to log in"
   },
   "auth": {
     "forgotPasswordLink": "Forgot password?",
@@ -470,6 +477,7 @@
     "sendResetLink": "Send reset link",
     "resetLinkSent": "If an account exists for this email, we've sent a reset link. Check your inbox (and spam folder).",
     "backToLogin": "Back to log in",
+    "forgotGoogleHint": "Signed up with Google? That account has no password. Just use \"Continue with Google\" on the log in page.",
     "resetTitle": "Choose a new password",
     "resetSubtitle": "Your new password must be at least 8 characters.",
     "newPasswordLabel": "New password",

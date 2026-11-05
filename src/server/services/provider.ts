@@ -3,6 +3,7 @@ import { Prisma } from "@/server/db/generated/prisma/client";
 import { AppError } from "@/server/lib/errors";
 import type { Actor } from "@/server/lib/actor";
 import { dateToTimeString, timeStringToDate } from "@/server/lib/pg-time";
+import { experienceSinceYear, experienceYears } from "@/lib/experience";
 import {
   setAvailabilityRulesSchema,
   setProviderCategoriesSchema,
@@ -25,6 +26,7 @@ export interface ProviderProfileDto {
   longitude: string | null;
   areaLabel: string | null;
   serviceRadiusKm: number;
+  experienceYears: number | null;
   isActive: boolean;
   isVerified: boolean;
   ratingAvg: string;
@@ -42,6 +44,7 @@ const providerProfileSelect = {
   longitude: true,
   areaLabel: true,
   serviceRadiusKm: true,
+  experienceSinceYear: true,
   isActive: true,
   isVerified: true,
   ratingAvg: true,
@@ -58,9 +61,13 @@ type ProviderProfileRow = Prisma.ProviderProfileGetPayload<{
  * returns, same as the previous Drizzle `numeric` columns did -- `toFixed`,
  * not `toString`, since Decimal normalizes away trailing zeros (e.g.
  * "1200" instead of "1200.00"). */
-function toProviderProfileDto(row: ProviderProfileRow): ProviderProfileDto {
+function toProviderProfileDto({
+  experienceSinceYear: sinceYear,
+  ...row
+}: ProviderProfileRow): ProviderProfileDto {
   return {
     ...row,
+    experienceYears: experienceYears(sinceYear),
     basePrice: row.basePrice.toFixed(2),
     latitude: row.latitude?.toFixed(6) ?? null,
     longitude: row.longitude?.toFixed(6) ?? null,
@@ -88,6 +95,8 @@ export async function updateProviderProfile(
         latitude: hasLocation ? parsed.latitude?.toFixed(6) : null,
         longitude: hasLocation ? parsed.longitude?.toFixed(6) : null,
         serviceRadiusKm: parsed.serviceRadiusKm,
+        experienceSinceYear:
+          parsed.experienceYears === undefined ? null : experienceSinceYear(parsed.experienceYears),
         isActive: parsed.isActive,
       },
       select: providerProfileSelect,
@@ -237,6 +246,7 @@ export type PublicProviderProfileDto = {
   latitude: number | null;
   longitude: number | null;
   isVerified: boolean;
+  experienceYears: number | null;
   ratingAvg: string;
   ratingCount: number;
   completedJobs: number;
@@ -268,6 +278,7 @@ export async function getPublicProviderProfile(
       latitude: true,
       longitude: true,
       isVerified: true,
+      experienceSinceYear: true,
       ratingAvg: true,
       ratingCount: true,
       completedJobs: true,
@@ -307,6 +318,7 @@ export async function getPublicProviderProfile(
     latitude: round3(row.latitude),
     longitude: round3(row.longitude),
     isVerified: row.isVerified,
+    experienceYears: experienceYears(row.experienceSinceYear),
     ratingAvg: row.ratingAvg.toFixed(2),
     ratingCount: row.ratingCount,
     completedJobs: row.completedJobs,

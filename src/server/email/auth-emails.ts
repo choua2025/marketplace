@@ -4,8 +4,9 @@ import lo from "../../../messages/lo.json";
 import { getEmailProvider, type EmailMessage } from "./index";
 
 const MESSAGES = { th, en, lo } as const;
-type Locale = keyof typeof MESSAGES;
-export type AuthEmailKind = "verifyEmail" | "resetPassword";
+export type Locale = keyof typeof MESSAGES;
+/** `useGoogle` answers a password-reset request for an account that signs in with Google only. */
+export type AuthEmailKind = "verifyEmail" | "resetPassword" | "useGoogle";
 
 function isLocale(value: string | undefined): value is Locale {
   return value === "th" || value === "en" || value === "lo";
@@ -45,23 +46,35 @@ export function buildAuthEmail(
 ): EmailMessage {
   const m = MESSAGES[data.locale].email;
   const brand = MESSAGES[data.locale].common.brand;
-  const copy =
-    kind === "verifyEmail"
-      ? {
-          subject: m.verifySubject,
-          intro: m.verifyIntro,
-          button: m.verifyButton,
-          expiry: m.verifyExpiry,
-        }
-      : {
-          subject: m.resetSubject,
-          intro: m.resetIntro,
-          button: m.resetButton,
-          expiry: m.resetExpiry,
-        };
+  const copy = {
+    verifyEmail: {
+      subject: m.verifySubject,
+      intro: m.verifyIntro,
+      button: m.verifyButton,
+      expiry: m.verifyExpiry,
+    },
+    resetPassword: {
+      subject: m.resetSubject,
+      intro: m.resetIntro,
+      button: m.resetButton,
+      expiry: m.resetExpiry,
+    },
+    // A plain link to the login page: nothing expires.
+    useGoogle: {
+      subject: m.googleSubject,
+      intro: m.googleIntro,
+      button: m.googleButton,
+      expiry: "",
+    },
+  }[kind];
   const greeting = m.greeting.replace("{name}", data.name);
 
-  const text = [greeting, "", copy.intro, "", data.url, "", copy.expiry, m.ignoreNote].join("\n");
+  const text = [greeting, "", copy.intro, "", data.url, "", copy.expiry, m.ignoreNote]
+    .filter((line, i, lines) => line !== "" || lines[i - 1] !== "")
+    .join("\n");
+  const expiryHtml = copy.expiry
+    ? `<p style="margin:0 0 8px;font-size:13px;color:#6b7280">${escapeHtml(copy.expiry)}</p>`
+    : "";
   const html = `<!doctype html>
 <html><body style="margin:0;padding:24px;background:#f4f6fb;font-family:Arial,'Noto Sans Thai','Noto Sans Lao',sans-serif;color:#111827">
   <table role="presentation" width="100%" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;padding:32px">
@@ -70,7 +83,7 @@ export function buildAuthEmail(
       <p style="margin:0 0 12px;font-size:16px">${escapeHtml(greeting)}</p>
       <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#374151">${escapeHtml(copy.intro)}</p>
       <p style="margin:0 0 24px"><a href="${escapeHtml(data.url)}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 24px;border-radius:10px">${escapeHtml(copy.button)}</a></p>
-      <p style="margin:0 0 8px;font-size:13px;color:#6b7280">${escapeHtml(copy.expiry)}</p>
+      ${expiryHtml}
       <p style="margin:0 0 4px;font-size:13px;color:#6b7280">${escapeHtml(m.linkFallback)}</p>
       <p style="margin:0 0 24px;font-size:12px;word-break:break-all;color:#2563eb">${escapeHtml(data.url)}</p>
       <p style="margin:0;font-size:12px;color:#9ca3af">${escapeHtml(m.ignoreNote)}</p>
@@ -89,17 +102,19 @@ export function buildAuthEmail(
 export function sendAuthEmail(
   kind: AuthEmailKind,
   user: { email: string; name: string },
-  url: string,
+  /** A fixed link, or one built for the email's language (e.g. the localized login page). */
+  url: string | ((locale: Locale) => string),
   request?: Request,
 ): void {
   const logFailure = (error: unknown) => {
     console.error(`[email] ${kind} email failed:`, error instanceof Error ? error.message : error);
   };
+  const locale = localeFromRequest(request);
   const message = buildAuthEmail(kind, {
     to: user.email,
     name: user.name,
-    url,
-    locale: localeFromRequest(request),
+    url: typeof url === "string" ? url : url(locale),
+    locale,
   });
   try {
     getEmailProvider().send(message).catch(logFailure);
