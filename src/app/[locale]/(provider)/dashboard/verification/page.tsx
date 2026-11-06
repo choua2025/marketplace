@@ -1,5 +1,6 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
+import { loginHref } from "@/lib/login-next";
 import { getActor } from "@/server/auth/session";
 import { getMyVerification } from "@/server/services/verification";
 import { getSignedImageUrl } from "@/server/services/upload";
@@ -10,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 export default async function VerificationPage() {
   const locale = await getLocale();
   const actor = await getActor();
-  if (!actor) throw redirect({ href: "/login", locale });
+  if (!actor) throw redirect({ href: loginHref("/dashboard/verification"), locale });
 
   if (actor.role !== "provider") {
     return (

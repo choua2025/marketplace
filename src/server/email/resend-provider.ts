@@ -20,8 +20,24 @@ export class ResendEmailProvider implements EmailProvider {
       }),
     });
     if (!response.ok) {
-      // Status only -- the response body can echo the recipient address.
-      throw new Error(`Resend rejected the email (HTTP ${response.status})`);
+      const reason = await readReason(response);
+      throw new Error(
+        `Resend rejected the email (HTTP ${response.status})${reason ? `: ${reason}` : ""}`,
+      );
     }
+  }
+}
+
+/**
+ * Resend's explanation (e.g. "verify a domain"), with email addresses masked:
+ * it often echoes the recipient's, and logs shouldn't collect those.
+ */
+async function readReason(response: Response): Promise<string | null> {
+  try {
+    const body = (await response.json()) as { message?: unknown };
+    if (typeof body.message !== "string") return null;
+    return body.message.replace(/[^\s()<>@]+@[^\s()<>@]+\.[a-z]{2,}/gi, "[email]").slice(0, 300);
+  } catch {
+    return null;
   }
 }

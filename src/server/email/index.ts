@@ -2,6 +2,7 @@ import { env } from "@/server/lib/env";
 import type { EmailProvider } from "./provider";
 import { ConsoleEmailProvider } from "./console-provider";
 import { ResendEmailProvider } from "./resend-provider";
+import { RedirectEmailProvider } from "./redirect-provider";
 
 export type { EmailMessage, EmailProvider } from "./provider";
 
@@ -22,15 +23,23 @@ export function getEmailProvider(): EmailProvider {
     throw new Error("Call setEmailProviderForTesting() before sending email in tests.");
   }
 
-  if (env.NODE_ENV !== "development") {
-    if (!env.RESEND_API_KEY || !env.EMAIL_FROM) {
-      // Fail loudly rather than silently pretending to send an email.
-      throw new Error("Email is not configured: set RESEND_API_KEY and EMAIL_FROM.");
-    }
-    provider = new ResendEmailProvider({ apiKey: env.RESEND_API_KEY, from: env.EMAIL_FROM });
+  // Real sending whenever Resend is configured -- in development too, so
+  // emails can be tried out in a real inbox before going live.
+  if (env.RESEND_API_KEY && env.EMAIL_FROM) {
+    const resend = new ResendEmailProvider({ apiKey: env.RESEND_API_KEY, from: env.EMAIL_FROM });
+    provider =
+      env.NODE_ENV === "development" && env.EMAIL_DEV_REDIRECT_TO
+        ? new RedirectEmailProvider(resend, env.EMAIL_DEV_REDIRECT_TO)
+        : resend;
     return provider;
   }
 
+  if (env.NODE_ENV !== "development") {
+    // Fail loudly rather than silently pretending to send an email.
+    throw new Error("Email is not configured: set RESEND_API_KEY and EMAIL_FROM.");
+  }
+
+  // Development without Resend: print emails (and their links) to the server log.
   provider = new ConsoleEmailProvider();
   return provider;
 }

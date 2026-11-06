@@ -1,4 +1,3 @@
-import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { Link, redirect } from "@/i18n/navigation";
 import {
@@ -19,6 +18,8 @@ import { getSignedImageUrl } from "@/server/services/upload";
 import { AppError } from "@/server/lib/errors";
 import { categoryName } from "@/lib/category-name";
 import { initials } from "@/lib/initials";
+import { loginHref } from "@/lib/login-next";
+import { NotInYourAccount } from "@/components/auth/not-in-your-account";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,13 +61,15 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
   const { id } = await params;
   const locale = await getLocale();
   const actor = await getActor();
-  if (!actor) throw redirect({ href: "/login", locale });
+  if (!actor) throw redirect({ href: loginHref(`/bookings/${id}`), locale });
 
   let booking;
   try {
     booking = await getBookingDetail(actor, id);
   } catch (error) {
-    if (error instanceof AppError && error.code === "BOOKING_NOT_FOUND") notFound();
+    if (error instanceof AppError && error.code === "BOOKING_NOT_FOUND") {
+      return <NotInYourAccount actor={actor} path={`/bookings/${id}`} />;
+    }
     throw error;
   }
 

@@ -4,6 +4,7 @@ import { AppError } from "@/server/lib/errors";
 import { getPgErrorCode } from "@/server/lib/db-errors";
 import { dateToTimeString } from "@/server/lib/pg-time";
 import type { Actor } from "@/server/lib/actor";
+import { notifyNewBooking } from "@/server/services/notifications";
 import {
   createBookingSchema,
   MAX_LEAD_TIME_MS,
@@ -92,7 +93,7 @@ export async function createBooking(actor: Actor | null, input: unknown) {
   }
   const parsed = result.data;
 
-  return db.$transaction(async (tx) => {
+  const booking = await db.$transaction(async (tx) => {
     const [provider] = await tx.$queryRaw<{ id: string; isActive: boolean; timezone: string }[]>(
       Prisma.sql`SELECT "id", "is_active" AS "isActive", "timezone" FROM "provider_profiles" WHERE "id" = ${parsed.providerId} FOR UPDATE`,
     );
@@ -152,6 +153,10 @@ export async function createBooking(actor: Actor | null, input: unknown) {
       select: bookingSelect,
     });
   });
+
+  // After the commit, so the email never announces a booking that rolled back.
+  notifyNewBooking(booking.id);
+  return booking;
 }
 
 type TransitionActor = "customer" | "provider";

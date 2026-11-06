@@ -1,5 +1,6 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
+import { loginHref } from "@/lib/login-next";
 import { getActor } from "@/server/auth/session";
 import { getMyProviderDashboard } from "@/server/services/provider";
 import { getMyPersonalInfo } from "@/server/services/profile";
@@ -14,7 +15,7 @@ import { PortfolioManager } from "@/components/provider/portfolio-manager";
 
 export default async function ProviderProfilePage() {
   const actor = await getActor();
-  if (!actor) throw redirect({ href: "/login", locale: await getLocale() });
+  if (!actor) throw redirect({ href: loginHref("/dashboard/profile"), locale: await getLocale() });
 
   if (actor.role !== "provider") {
     return (

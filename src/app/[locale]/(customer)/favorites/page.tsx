@@ -1,6 +1,7 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import { BadgeCheck, Star } from "lucide-react";
 import { Link, redirect } from "@/i18n/navigation";
+import { loginHref } from "@/lib/login-next";
 import { getActor } from "@/server/auth/session";
 import { listMyFavorites } from "@/server/services/favorite";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -8,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 export default async function FavoritesPage() {
   const locale = await getLocale();
   const actor = await getActor();
-  if (!actor) throw redirect({ href: "/login", locale });
+  if (!actor) throw redirect({ href: loginHref("/favorites"), locale });
 
   const [favorites, t, tCommon] = await Promise.all([
     listMyFavorites(actor),

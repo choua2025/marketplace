@@ -1,6 +1,7 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import { ClipboardList, Inbox, MessageCircle, UserPen } from "lucide-react";
 import { Link, redirect } from "@/i18n/navigation";
+import { loginHref } from "@/lib/login-next";
 import { getActor } from "@/server/auth/session";
 import { listMyBookings } from "@/server/services/booking-read";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,7 @@ export default async function ProviderDashboardPage() {
   const locale = await getLocale();
   const actor = await getActor();
   if (!actor) {
-    throw redirect({ href: "/login", locale });
+    throw redirect({ href: loginHref("/dashboard"), locale });
   }
 
   if (actor.role !== "provider") {

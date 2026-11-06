@@ -8,6 +8,7 @@ import { createBookingAction } from "@/app/[locale]/(customer)/book/[providerId]
 import { uploadFile } from "@/lib/upload-client";
 import { categoryName } from "@/lib/category-name";
 import { bookingTimeProblem, type BookingTimeProblem } from "@/lib/validations/booking";
+import { billableHours } from "@/lib/booking-hours";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -141,6 +142,16 @@ export function BookingForm({ providerId, categories, basePrice, priceUnit }: Bo
     endBeforeStart: t("timeEndBeforeStart"),
     tooLong: t("timeTooLong"),
   };
+
+  // Hourly pros: show how many hours are booked and the estimated total.
+  const hours =
+    priceUnit === "hour" && startDate && endDate && !timeProblem
+      ? billableHours(startDate, endDate)
+      : null;
+  const estimatedTotal =
+    hours === null
+      ? null
+      : `${format.number(Number(basePrice) * hours)} ${tCommon("currency")}`;
 
   const canSubmit =
     !submitting &&
@@ -314,15 +325,33 @@ export function BookingForm({ providerId, categories, basePrice, priceUnit }: Bo
             <dt className="text-muted-foreground">{t("summaryEnd")}</dt>
             <dd className="text-right font-medium">{formatDateTime(endAt)}</dd>
           </div>
+          {hours !== null ? (
+            <div className="flex items-center justify-between gap-2">
+              <dt className="text-muted-foreground">{t("summaryDuration")}</dt>
+              <dd className="text-right font-medium">{t("durationHours", { count: hours })}</dd>
+            </div>
+          ) : null}
         </dl>
 
         <div className="flex items-center justify-between border-t pt-3">
           <span className="text-sm text-muted-foreground">{t("summaryStartingPrice")}</span>
-          <span className="text-lg font-bold">
+          <span className={cn("font-bold", estimatedTotal ? "text-sm" : "text-lg")}>
             {price}
             <span className="text-sm font-normal text-muted-foreground"> / {priceUnitLabel}</span>
           </span>
         </div>
+
+        {hours !== null && estimatedTotal ? (
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm text-muted-foreground">
+              {t("summaryEstimatedTotal")}
+              <span className="block text-xs">
+                {t("estimateBreakdown", { price, count: hours })}
+              </span>
+            </span>
+            <span className="text-lg font-bold">{estimatedTotal}</span>
+          </div>
+        ) : null}
 
         <Button
           type="button"

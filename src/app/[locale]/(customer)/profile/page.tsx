@@ -1,5 +1,6 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
+import { loginHref } from "@/lib/login-next";
 import { getActor } from "@/server/auth/session";
 import { getMyPersonalInfo } from "@/server/services/profile";
 import { getSignedImageUrl } from "@/server/services/upload";
@@ -9,7 +10,7 @@ import { PersonalInfoForm } from "@/components/profile/personal-info-form";
 export default async function MyProfilePage() {
   const locale = await getLocale();
   const actor = await getActor();
-  if (!actor) throw redirect({ href: "/login", locale });
+  if (!actor) throw redirect({ href: loginHref("/profile"), locale });
   // Providers edit the same details, plus their business profile, on their own page.
   if (actor.role === "provider") throw redirect({ href: "/dashboard/profile", locale });
 

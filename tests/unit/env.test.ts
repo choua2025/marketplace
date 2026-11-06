@@ -55,7 +55,9 @@ describe("server/lib/env", () => {
 
     const { env } = await import("@/server/lib/env");
 
-    expect(env).toEqual({ ...VALID, CLOUDINARY_FOLDER: "changdee" });
+    // toMatchObject, not toEqual: env.ts also loads the developer's own .env,
+    // so optional keys set there (EMAIL_FROM, SUPPORT_EMAIL, ...) show up too.
+    expect(env).toMatchObject({ ...VALID, CLOUDINARY_FOLDER: "changdee" });
   });
 
   it("throws when CLOUDINARY_API_SECRET is missing", async () => {

@@ -3,6 +3,7 @@ import type { Prisma } from "@/server/db/generated/prisma/client";
 import { AppError } from "@/server/lib/errors";
 import { checkRateLimit } from "@/server/lib/rate-limit";
 import type { Actor } from "@/server/lib/actor";
+import { notifyNewMessage } from "@/server/services/notifications";
 import { sendMessageSchema, startConversationSchema } from "@/lib/validations/chat";
 
 const MESSAGES_PER_MINUTE = 20;
@@ -112,6 +113,7 @@ export async function sendMessage(actor: Actor | null, conversationId: string, i
     select: messageSelect,
   });
 
+  notifyNewMessage(created.id);
   return toMessageDto(created);
 }
 

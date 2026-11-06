@@ -9,7 +9,10 @@ import {
 import { subscribeToConversation } from "@/server/realtime/pg-listener";
 import { resetRateLimitsForTesting } from "@/server/lib/rate-limit";
 import type { Actor } from "@/server/lib/actor";
+import { setEmailProviderForTesting } from "@/server/email";
+import { setMessageEmailDelayForTesting } from "@/server/services/notifications";
 import { resetTestDatabase, testOwnerDb } from "../helpers/db";
+import { RecordingEmailProvider } from "../helpers/recording-email-provider";
 
 async function createCustomerFixture(id: string): Promise<Actor> {
   await testOwnerDb.user.create({ data: { id, name: id, email: `${id}@test.local` } });
@@ -26,10 +29,19 @@ async function createProviderFixture(id: string): Promise<Actor> {
   return { id, role: "provider" };
 }
 
+let mail: RecordingEmailProvider;
+
 beforeEach(async () => {
   await resetTestDatabase();
   resetRateLimitsForTesting();
+  mail = new RecordingEmailProvider();
+  setEmailProviderForTesting(mail);
+  setMessageEmailDelayForTesting(0);
 });
+
+/** Emails are sent in the background -- give them a moment to land. */
+const settle = () => new Promise((resolve) => setTimeout(resolve, 300));
+const emailsTo = (to: string) => mail.sent.filter((m) => m.to === to);
 
 describe("startConversation", () => {
   it("is idempotent -- calling it twice returns the same conversation", async () => {
@@ -137,6 +149,51 @@ describe("sendMessage", () => {
     unsubscribe();
 
     expect(notifiedId).toBe(String(message.id));
+  });
+});
+
+describe("new-message emails", () => {
+  it("emails the other party once per unread streak, with the message quoted", async () => {
+    const customer = await createCustomerFixture("cust1");
+    const provider = await createProviderFixture("prov1");
+    const conversation = await startConversation(customer, { providerId: provider.id });
+
+    await sendMessage(customer, conversation.id, { body: "แอร์ไม่เย็นครับ" });
+    await settle();
+    const first = emailsTo("prov1@test.local");
+    expect(first).toHaveLength(1);
+    expect(first[0]!.text).toContain("แอร์ไม่เย็นครับ");
+    expect(first[0]!.subject).toContain("cust1");
+    expect(new URL(first[0]!.text.match(/https?:\/\/\S+/)![0]).pathname).toBe(
+      `/messages/${conversation.id}`,
+    );
+
+    // Still unread: no second email.
+    await sendMessage(customer, conversation.id, { body: "ช่วยตอบด้วยครับ" });
+    await settle();
+    expect(emailsTo("prov1@test.local")).toHaveLength(1);
+
+    // Once read, the next message emails again.
+    await markConversationRead(provider, conversation.id);
+    await sendMessage(customer, conversation.id, { body: "พรุ่งนี้ว่างไหม" });
+    await settle();
+    expect(emailsTo("prov1@test.local")).toHaveLength(2);
+
+    // The sender never gets an email about their own messages.
+    expect(emailsTo("cust1@test.local")).toHaveLength(0);
+  });
+
+  it("skips the email when the message is read during the delay", async () => {
+    setMessageEmailDelayForTesting(150);
+    const customer = await createCustomerFixture("cust1");
+    const provider = await createProviderFixture("prov1");
+    const conversation = await startConversation(customer, { providerId: provider.id });
+
+    await sendMessage(provider, conversation.id, { body: "สวัสดีครับ" });
+    await markConversationRead(customer, conversation.id);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    expect(emailsTo("cust1@test.local")).toHaveLength(0);
   });
 });
 

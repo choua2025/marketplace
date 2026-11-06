@@ -1,6 +1,7 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { getPathname } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 
@@ -41,8 +42,10 @@ function GoogleIcon() {
   );
 }
 
-export function GoogleSection() {
+/** `next`: a locale-less path to land on after Google sign-in (default: home). */
+export function GoogleSection({ next = "/" }: { next?: string }) {
   const t = useTranslations("login");
+  const locale = useLocale();
   return (
     <>
       <div className="flex items-center gap-2">
@@ -54,7 +57,12 @@ export function GoogleSection() {
         type="button"
         variant="outline"
         className="h-12 gap-3"
-        onClick={() => authClient.signIn.social({ provider: "google", callbackURL: "/" })}
+        onClick={() =>
+          authClient.signIn.social({
+            provider: "google",
+            callbackURL: getPathname({ href: next, locale }),
+          })
+        }
       >
         <GoogleIcon />
         {t("googleLogin")}

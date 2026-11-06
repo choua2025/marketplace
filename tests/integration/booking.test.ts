@@ -3,7 +3,9 @@ import { createBooking, updateBookingStatus } from "@/server/services/booking";
 import { getBookingContact } from "@/server/services/booking-read";
 import type { Actor } from "@/server/lib/actor";
 import { timeStringToDate } from "@/server/lib/pg-time";
+import { setEmailProviderForTesting } from "@/server/email";
 import { resetTestDatabase, testOwnerDb } from "../helpers/db";
+import { RecordingEmailProvider } from "../helpers/recording-email-provider";
 
 const WEEKDAYS_MON_SAT = [1, 2, 3, 4, 5, 6];
 
@@ -77,8 +79,12 @@ function validBookingInput(providerId: string, overrides: Record<string, unknown
   };
 }
 
+let mail: RecordingEmailProvider;
+
 beforeEach(async () => {
   await resetTestDatabase();
+  mail = new RecordingEmailProvider();
+  setEmailProviderForTesting(mail);
   await testOwnerDb.category.createMany({
     data: [
       { slug: "electrician", nameTh: "ช่างไฟฟ้า", nameEn: "Electrician", icon: "zap" },
@@ -98,6 +104,20 @@ describe("createBooking", () => {
     });
 
     expect(booking.status).toBe("pending");
+  });
+
+  it("emails the provider a link to the new request", async () => {
+    const provider = await createProviderWithAvailability("prov1");
+    const customer = await createCustomerFixture("cust1");
+
+    const booking = await createBooking(customer, validBookingInput(provider.id));
+
+    const link = await mail.lastLinkTo("prov1@test.local");
+    expect(link.pathname).toBe(`/bookings/${booking.id}`);
+    const email = mail.sent.find((m) => m.to === "prov1@test.local")!;
+    expect(email.subject).toContain("cust1");
+    expect(email.text).toContain("ช่างไฟฟ้า");
+    expect(mail.sent.some((m) => m.to === "cust1@test.local")).toBe(false);
   });
 
   it("rejects an anonymous actor", async () => {

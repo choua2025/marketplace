@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
+import { loginHref } from "@/lib/login-next";
 import { getActor } from "@/server/auth/session";
 import { getBookingDetail } from "@/server/services/booking-read";
 import { getReviewForBooking } from "@/server/services/review";
@@ -11,7 +12,7 @@ export default async function WriteReviewPage({ params }: { params: Promise<{ id
   const { id: bookingId } = await params;
   const locale = await getLocale();
   const actor = await getActor();
-  if (!actor) throw redirect({ href: "/login", locale });
+  if (!actor) throw redirect({ href: loginHref(`/bookings/${bookingId}/review`), locale });
 
   let booking;
   try {

@@ -1,6 +1,7 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import { ClipboardList, MessageCircle } from "lucide-react";
 import { Link, redirect } from "@/i18n/navigation";
+import { loginHref } from "@/lib/login-next";
 import { getActor } from "@/server/auth/session";
 import { listMyBookings } from "@/server/services/booking-read";
 import type { BookingStatus } from "@/lib/validations/booking";
@@ -23,7 +24,7 @@ export default async function MyBookingsPage({
 }) {
   const locale = await getLocale();
   const actor = await getActor();
-  if (!actor) throw redirect({ href: "/login", locale });
+  if (!actor) throw redirect({ href: loginHref("/bookings"), locale });
 
   const { status } = await searchParams;
   // Unknown values (e.g. a hand-typed ?status=) mean "all", never a DB error.

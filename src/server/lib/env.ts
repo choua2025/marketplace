@@ -30,6 +30,12 @@ const envSchema = z.object({
   // send is attempted without these. EMAIL_FROM e.g. "ChangDee <no-reply@your-domain>".
   RESEND_API_KEY: emptyStringAsUndefined(z.string().min(1).optional()),
   EMAIL_FROM: emptyStringAsUndefined(z.string().min(3).optional()),
+  // Shown on the Contact page. Optional so dev/test/CI run without it; the
+  // page just leaves the email out until it's set.
+  SUPPORT_EMAIL: emptyStringAsUndefined(z.email().optional()),
+  // Development only: deliver every email to this one inbox instead (e.g. the
+  // owner of a Resend account still in testing mode). Ignored in production.
+  EMAIL_DEV_REDIRECT_TO: emptyStringAsUndefined(z.email().optional()),
   // File storage (avatars, portfolio, booking/chat photos, verification docs).
   CLOUDINARY_CLOUD_NAME: z.string().min(1),
   CLOUDINARY_API_KEY: z.string().min(1),

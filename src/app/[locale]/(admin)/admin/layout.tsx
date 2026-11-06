@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { ArrowLeft } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import { Link, redirect } from "@/i18n/navigation";
+import { loginHref } from "@/lib/login-next";
 import { getActor } from "@/server/auth/session";
 import { getActorSummary } from "@/server/services/profile";
 import { getSignedImageUrl } from "@/server/services/upload";
@@ -14,7 +15,7 @@ import { UserMenu } from "@/components/layout/user-menu";
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
   const actor = await getActor();
-  if (!actor) throw redirect({ href: "/login", locale });
+  if (!actor) throw redirect({ href: loginHref("/admin"), locale });
   // Admin is never self-service (SPEC.md section 7.1 extended to this
   // role too) -- a non-admin just gets sent home, no "request access" UI.
   if (actor.role !== "admin") throw redirect({ href: "/", locale });

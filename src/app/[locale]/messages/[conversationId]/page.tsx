@@ -1,11 +1,12 @@
-import { notFound } from "next/navigation";
 import { getLocale } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 import { getActor } from "@/server/auth/session";
 import { getConversationDetail, listMessages } from "@/server/services/chat-read";
 import { getSignedImageUrl } from "@/server/services/upload";
 import { AppError } from "@/server/lib/errors";
+import { loginHref } from "@/lib/login-next";
 import { ChatThread } from "@/components/chat/chat-thread";
+import { NotInYourAccount } from "@/components/auth/not-in-your-account";
 
 export default async function ConversationPage({
   params,
@@ -14,7 +15,8 @@ export default async function ConversationPage({
 }) {
   const { conversationId } = await params;
   const actor = await getActor();
-  if (!actor) throw redirect({ href: "/login", locale: await getLocale() });
+  const path = `/messages/${conversationId}`;
+  if (!actor) throw redirect({ href: loginHref(path), locale: await getLocale() });
 
   let detail;
   let page;
@@ -24,7 +26,9 @@ export default async function ConversationPage({
       listMessages(actor, conversationId, {}),
     ]);
   } catch (error) {
-    if (error instanceof AppError && error.code === "NOT_FOUND") notFound();
+    if (error instanceof AppError && error.code === "NOT_FOUND") {
+      return <NotInYourAccount actor={actor} path={path} />;
+    }
     throw error;
   }
 

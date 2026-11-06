@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
+import { loginHref } from "@/lib/login-next";
 import { getActor } from "@/server/auth/session";
 import { getPublicProviderProfile } from "@/server/services/provider";
 import { AppError } from "@/server/lib/errors";
@@ -13,7 +14,7 @@ export default async function BookProviderPage({
 }) {
   const { providerId } = await params;
   const actor = await getActor();
-  if (!actor) throw redirect({ href: "/login", locale: await getLocale() });
+  if (!actor) throw redirect({ href: loginHref(`/book/${providerId}`), locale: await getLocale() });
 
   let provider;
   try {

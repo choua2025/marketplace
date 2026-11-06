@@ -1,16 +1,9 @@
-import th from "../../../messages/th.json";
-import en from "../../../messages/en.json";
-import lo from "../../../messages/lo.json";
 import { getEmailProvider, type EmailMessage } from "./index";
+import { EMAIL_MESSAGES, isLocale, renderEmail, type Locale } from "./layout";
 
-const MESSAGES = { th, en, lo } as const;
-export type Locale = keyof typeof MESSAGES;
+export type { Locale } from "./layout";
 /** `useGoogle` answers a password-reset request for an account that signs in with Google only. */
 export type AuthEmailKind = "verifyEmail" | "resetPassword" | "useGoogle";
-
-function isLocale(value: string | undefined): value is Locale {
-  return value === "th" || value === "en" || value === "lo";
-}
 
 /**
  * The language of the page the request came from: the /en or /lo prefix of
@@ -32,20 +25,11 @@ export function localeFromRequest(request?: Request): Locale {
   return isLocale(cookie) ? cookie : "th";
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 export function buildAuthEmail(
   kind: AuthEmailKind,
   data: { to: string; name: string; url: string; locale: Locale },
 ): EmailMessage {
-  const m = MESSAGES[data.locale].email;
-  const brand = MESSAGES[data.locale].common.brand;
+  const m = EMAIL_MESSAGES[data.locale].email;
   const copy = {
     verifyEmail: {
       subject: m.verifySubject,
@@ -67,31 +51,17 @@ export function buildAuthEmail(
       expiry: "",
     },
   }[kind];
-  const greeting = m.greeting.replace("{name}", data.name);
 
-  const text = [greeting, "", copy.intro, "", data.url, "", copy.expiry, m.ignoreNote]
-    .filter((line, i, lines) => line !== "" || lines[i - 1] !== "")
-    .join("\n");
-  const expiryHtml = copy.expiry
-    ? `<p style="margin:0 0 8px;font-size:13px;color:#6b7280">${escapeHtml(copy.expiry)}</p>`
-    : "";
-  const html = `<!doctype html>
-<html><body style="margin:0;padding:24px;background:#f4f6fb;font-family:Arial,'Noto Sans Thai','Noto Sans Lao',sans-serif;color:#111827">
-  <table role="presentation" width="100%" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;padding:32px">
-    <tr><td>
-      <p style="margin:0 0 24px;font-size:20px;font-weight:bold;color:#2563eb">${escapeHtml(brand)}</p>
-      <p style="margin:0 0 12px;font-size:16px">${escapeHtml(greeting)}</p>
-      <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#374151">${escapeHtml(copy.intro)}</p>
-      <p style="margin:0 0 24px"><a href="${escapeHtml(data.url)}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 24px;border-radius:10px">${escapeHtml(copy.button)}</a></p>
-      ${expiryHtml}
-      <p style="margin:0 0 4px;font-size:13px;color:#6b7280">${escapeHtml(m.linkFallback)}</p>
-      <p style="margin:0 0 24px;font-size:12px;word-break:break-all;color:#2563eb">${escapeHtml(data.url)}</p>
-      <p style="margin:0;font-size:12px;color:#9ca3af">${escapeHtml(m.ignoreNote)}</p>
-    </td></tr>
-  </table>
-</body></html>`;
-
-  return { to: data.to, subject: `${copy.subject} - ${brand}`, html, text };
+  return renderEmail({
+    to: data.to,
+    locale: data.locale,
+    subject: copy.subject,
+    name: data.name,
+    paragraphs: [copy.intro],
+    button: { label: copy.button, url: data.url },
+    notes: [copy.expiry],
+    footer: m.ignoreNote,
+  });
 }
 
 /**

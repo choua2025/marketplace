@@ -1,6 +1,7 @@
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { MessageCircle } from "lucide-react";
 import { Link, redirect } from "@/i18n/navigation";
+import { loginHref } from "@/lib/login-next";
 import { getActor } from "@/server/auth/session";
 import { listConversations } from "@/server/services/chat-read";
 import { getSignedImageUrl } from "@/server/services/upload";
@@ -11,7 +12,7 @@ import { Card } from "@/components/ui/card";
 
 export default async function MessagesInboxPage() {
   const actor = await getActor();
-  if (!actor) throw redirect({ href: "/login", locale: await getLocale() });
+  if (!actor) throw redirect({ href: loginHref("/messages"), locale: await getLocale() });
 
   const [conversations, t, format] = await Promise.all([
     listConversations(actor),

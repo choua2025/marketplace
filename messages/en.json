@@ -148,8 +148,7 @@
     "contact": {
       "title": "Contact Us",
       "body": "Have a question or ran into an issue? Reach our team at the email below. We usually reply within 1-2 business days.",
-      "emailLabel": "Email",
-      "email": "support@changdee.test"
+      "emailLabel": "Email"
     },
     "terms": {
       "title": "Terms of Service",
@@ -320,6 +319,10 @@
     "summaryStart": "Starts",
     "summaryEnd": "Ends",
     "summaryStartingPrice": "Starting price",
+    "summaryDuration": "Hours booked",
+    "durationHours": "{count, plural, one {# hour} other {# hours}}",
+    "summaryEstimatedTotal": "Estimated total",
+    "estimateBreakdown": "{price} × {count} {count, plural, one {hr} other {hrs}}",
     "confirm": "Confirm booking",
     "priceNote": "* The final price is agreed with the pro directly. No payment is taken at this step.",
     "categoryLabel": "Service",
@@ -468,7 +471,17 @@
     "ignoreNote": "If you didn't request this, you can ignore this email. Your account is safe.",
     "googleSubject": "Sign in with Google",
     "googleIntro": "We got a request to reset your password, but this account was created with Google, so it has no password. Click the button below and choose \"Continue with Google\" to sign in.",
-    "googleButton": "Go to log in"
+    "googleButton": "Go to log in",
+    "newBookingSubject": "New booking request from {name}",
+    "newBookingIntro": "{name} wants to book {category} on {when}.",
+    "newBookingAction": "Click the button below to see the details, then accept or decline. The customer is waiting for your answer.",
+    "newBookingButton": "View request",
+    "newMessageSubject": "New message from {name}",
+    "newMessageIntro": "{name} sent you a message:",
+    "newMessagePhoto": "[Sent a photo]",
+    "newMessageButton": "Open chat to reply",
+    "newMessageNote": "We won't email you about further messages until you open this chat.",
+    "notificationFooter": "You're getting this email because you have a ChangDee account."
   },
   "auth": {
     "forgotPasswordLink": "Forgot password?",
@@ -502,5 +515,12 @@
     "goDashboard": "Go to pro dashboard",
     "tooManyRequests": "Too many requests. Please wait a moment and try again.",
     "genericError": "Something went wrong. Please try again."
+  },
+  "wrongAccount": {
+    "title": "Not found in your account",
+    "signedInAs": "You are signed in as",
+    "hint": "This may belong to a different account. If you opened a link from an email, sign in with the account that received it.",
+    "switchAccount": "Sign in with another account",
+    "home": "Back to home"
   }
 }

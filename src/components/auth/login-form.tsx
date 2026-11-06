@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label";
 import { AuthHeader, GoogleSection } from "@/components/auth/auth-shared";
 import { ResendVerificationButton } from "@/components/auth/resend-verification";
 
-export function LoginForm() {
+/** `next`: a locale-less path inside the site to return to after signing in. */
+export function LoginForm({ next }: { next?: string }) {
   const t = useTranslations("login");
   const tAuth = useTranslations("auth");
   const router = useRouter();
@@ -48,7 +49,7 @@ export function LoginForm() {
       );
       return;
     }
-    router.push("/");
+    router.push(next ?? "/");
     router.refresh();
   }
 
@@ -101,7 +102,7 @@ export function LoginForm() {
             </Button>
           </form>
 
-          <GoogleSection />
+          <GoogleSection next={next} />
         </CardContent>
       </Card>
 
