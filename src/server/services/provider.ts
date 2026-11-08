@@ -253,6 +253,8 @@ export type PublicProviderProfileDto = {
   categories: { slug: string; nameTh: string; nameEn: string; icon: string }[];
   portfolio: PortfolioItemDto[];
   availability: AvailabilityRuleDto[];
+  /** IANA timezone the working hours are in (e.g. Asia/Bangkok). */
+  timezone: string;
 };
 
 /**
@@ -279,6 +281,7 @@ export async function getPublicProviderProfile(
       longitude: true,
       isVerified: true,
       experienceSinceYear: true,
+      timezone: true,
       ratingAvg: true,
       ratingCount: true,
       completedJobs: true,
@@ -329,5 +332,6 @@ export async function getPublicProviderProfile(
       startTime: dateToTimeString(rule.startTime),
       endTime: dateToTimeString(rule.endTime),
     })),
+    timezone: row.timezone,
   };
 }

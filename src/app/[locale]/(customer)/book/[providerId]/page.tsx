@@ -4,8 +4,16 @@ import { redirect } from "@/i18n/navigation";
 import { loginHref } from "@/lib/login-next";
 import { getActor } from "@/server/auth/session";
 import { getPublicProviderProfile } from "@/server/services/provider";
+import { listBusyTimes } from "@/server/services/booking-read";
 import { AppError } from "@/server/lib/errors";
 import { BookingForm } from "@/components/booking/booking-form";
+
+// This page renders per request (it reads the session), so "now" is the
+// request time -- passed down so the time picker's server render and
+// hydration show the same days.
+function requestTime(): number {
+  return Date.now();
+}
 
 export default async function BookProviderPage({
   params,
@@ -24,7 +32,7 @@ export default async function BookProviderPage({
     throw error;
   }
 
-  const t = await getTranslations("booking");
+  const [t, busy] = await Promise.all([getTranslations("booking"), listBusyTimes(provider.id)]);
 
   if (actor.role !== "customer") {
     return (
@@ -45,6 +53,10 @@ export default async function BookProviderPage({
         categories={provider.categories}
         basePrice={provider.basePrice}
         priceUnit={provider.priceUnit}
+        availability={provider.availability}
+        timezone={provider.timezone}
+        busy={busy}
+        now={requestTime()}
       />
     </main>
   );

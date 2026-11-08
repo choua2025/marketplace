@@ -6,6 +6,7 @@ import { getMyPersonalInfo } from "@/server/services/profile";
 import { getSignedImageUrl } from "@/server/services/upload";
 import { AvatarUploader } from "@/components/profile/avatar-uploader";
 import { PersonalInfoForm } from "@/components/profile/personal-info-form";
+import { HomepagePhotoToggle } from "@/components/profile/homepage-photo-toggle";
 
 export default async function MyProfilePage() {
   const locale = await getLocale();
@@ -32,6 +33,7 @@ export default async function MyProfilePage() {
             audience="customer"
           />
         </div>
+        <HomepagePhotoToggle initialValue={personal.showOnHomepage} />
       </section>
     </main>
   );

@@ -93,6 +93,8 @@ model Profile {
   fullName        String           @map("full_name") @db.VarChar(100)
   avatarKey       String?          @map("avatar_key")
   locale          Locale           @default(th)
+  /// Customer agreed to have their photo shown on the public homepage.
+  showOnHomepage  Boolean          @default(false) @map("show_on_homepage")
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
   user            User             @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "profiles_id_user_id_fk")

@@ -33,6 +33,69 @@ export function buildNewBookingEmail(data: {
   });
 }
 
+/**
+ * Booking status changes the other party is emailed about. "slotTaken": the
+ * request was cancelled automatically because the provider confirmed another
+ * booking for overlapping time.
+ */
+export type NotifiedBookingStatus = "confirmed" | "completed" | "cancelled" | "slotTaken";
+
+export function buildBookingStatusEmail(data: {
+  to: string;
+  locale: Locale;
+  recipientName: string;
+  /** Who made the change: the provider, or for a cancellation either side. */
+  otherName: string;
+  categoryName: string;
+  /** Already formatted in the provider's time zone and language. */
+  when: string;
+  status: NotifiedBookingStatus;
+  cancelReason?: string | null;
+  /** Booking page; for "completed", the review page; for "slotTaken", booking the provider again. */
+  url: string;
+}): EmailMessage {
+  const m = EMAIL_MESSAGES[data.locale].email;
+  const values = { name: data.otherName, category: data.categoryName, when: data.when };
+  const content = {
+    confirmed: {
+      subject: m.bookingConfirmedSubject,
+      paragraphs: [m.bookingConfirmedIntro],
+      notes: [m.bookingConfirmedNote],
+      button: m.bookingButton,
+    },
+    completed: {
+      subject: m.bookingCompletedSubject,
+      paragraphs: [m.bookingCompletedIntro, m.bookingCompletedAction],
+      notes: [],
+      button: m.bookingCompletedButton,
+    },
+    cancelled: {
+      subject: m.bookingCancelledSubject,
+      paragraphs: [m.bookingCancelledIntro, ...(data.cancelReason ? [m.bookingCancelledReason] : [])],
+      notes: [],
+      button: m.bookingButton,
+    },
+    slotTaken: {
+      subject: m.bookingSlotTakenSubject,
+      paragraphs: [m.bookingSlotTakenIntro, m.bookingSlotTakenAction],
+      notes: [],
+      button: m.bookingSlotTakenButton,
+    },
+  }[data.status];
+
+  return renderEmail({
+    to: data.to,
+    locale: data.locale,
+    subject: fill(content.subject, values),
+    name: data.recipientName,
+    paragraphs: content.paragraphs.map((p) => fill(p, values)),
+    quote: data.status === "cancelled" ? (data.cancelReason ?? undefined) : undefined,
+    button: { label: content.button, url: data.url },
+    notes: content.notes,
+    footer: m.notificationFooter,
+  });
+}
+
 export function buildNewMessageEmail(data: {
   to: string;
   locale: Locale;

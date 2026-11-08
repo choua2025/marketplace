@@ -8,6 +8,7 @@ import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { AuthHeader, GoogleSection } from "@/components/auth/auth-shared";
 import { ResendVerificationButton } from "@/components/auth/resend-verification";
@@ -83,9 +84,9 @@ export function LoginForm({ next }: { next?: string }) {
                   {tAuth("forgotPasswordLink")}
                 </Link>
               </div>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
+                autoComplete="current-password"
                 placeholder={t("passwordPlaceholder")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

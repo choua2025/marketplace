@@ -1,10 +1,10 @@
 "use client";
 
-import { ClipboardList, Menu, MessageCircle } from "lucide-react";
+import { Briefcase, ClipboardList, Menu, MessageCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
-import { UnreadBadge, useUnreadMessages } from "@/components/layout/unread-messages";
+import { CountBadge, useHeaderCounts, type HeaderBadge } from "@/components/layout/header-counts";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,6 +18,7 @@ import {
 // icon components (functions) to these client components.
 const NAV_ICONS = {
   bookings: ClipboardList,
+  jobs: Briefcase,
   messages: MessageCircle,
 };
 
@@ -25,14 +26,29 @@ export interface NavItem {
   href: string;
   label: string;
   icon?: keyof typeof NAV_ICONS;
-  /** Show the unread-messages count (from UnreadMessagesProvider) on this item. */
-  showUnread?: boolean;
+  /** Which HeaderCountsProvider count to show as a badge on this item. */
+  badge?: HeaderBadge;
 }
 
 function NavIcon({ name, className }: { name: NavItem["icon"]; className?: string }) {
   if (!name) return null;
   const Icon = NAV_ICONS[name];
   return <Icon className={cn("size-4 shrink-0", className)} aria-hidden />;
+}
+
+/** The item's count, and its label with the count spelled out for screen readers. */
+function useBadge() {
+  const t = useTranslations("header");
+  const counts = useHeaderCounts();
+  return (item: NavItem) => {
+    const count = item.badge ? counts[item.badge] : 0;
+    if (count <= 0) return { count, label: item.label };
+    const detail =
+      item.badge === "pendingBookings"
+        ? t("pendingCount", { count })
+        : t("unreadCount", { count });
+    return { count, label: `${item.label} (${detail})` };
+  };
 }
 
 function isActive(pathname: string, href: string) {
@@ -75,12 +91,14 @@ export function HeaderNav({ items }: { items: NavItem[] }) {
 export function HeaderShortcuts({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
   const router = useRouter();
-  const t = useTranslations("header");
-  const unread = useUnreadMessages();
+  const badge = useBadge();
 
-  function handleClick(e: React.MouseEvent<HTMLAnchorElement>, active: boolean) {
+  function handleClick(e: React.MouseEvent<HTMLAnchorElement>, href: string) {
+    // Only on the item's own page: from a page inside it (e.g. one booking,
+    // or the provider's profile editor) the icon leads back to that page.
+    if (pathname !== href) return;
     // Let ctrl/cmd/shift/middle clicks open the link in a new tab as usual.
-    if (!active || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
     router.push("/");
   }
@@ -89,8 +107,7 @@ export function HeaderShortcuts({ items }: { items: NavItem[] }) {
     <div className="hidden items-center gap-0.5 sm:flex">
       {items.map((item) => {
         const active = isActive(pathname, item.href);
-        const count = item.showUnread ? unread : 0;
-        const label = count > 0 ? `${item.label} (${t("unreadCount", { count })})` : item.label;
+        const { count, label } = badge(item);
         return (
           <Button
             key={item.href}
@@ -104,10 +121,10 @@ export function HeaderShortcuts({ items }: { items: NavItem[] }) {
               aria-label={label}
               title={label}
               aria-current={active ? "page" : undefined}
-              onClick={(e) => handleClick(e, active)}
+              onClick={(e) => handleClick(e, item.href)}
             >
               <NavIcon name={item.icon} className="size-5" />
-              <UnreadBadge count={count} className="absolute -top-0.5 -right-0.5" />
+              <CountBadge count={count} className="absolute -top-0.5 -right-0.5" />
             </Link>
           </Button>
         );
@@ -128,8 +145,8 @@ export function MobileNav({
   authItems: NavItem[];
 }) {
   const t = useTranslations("header");
-  const unreadMessages = useUnreadMessages();
-  const unread = shortcutItems.some((item) => item.showUnread) ? unreadMessages : 0;
+  const badge = useBadge();
+  const hasNews = shortcutItems.some((item) => badge(item).count > 0);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -137,13 +154,11 @@ export function MobileNav({
           variant="ghost"
           size="icon"
           className="relative md:hidden"
-          aria-label={
-            unread > 0 ? `${t("openMenu")} (${t("unreadCount", { count: unread })})` : t("openMenu")
-          }
+          aria-label={hasNews ? `${t("openMenu")} (${t("menuHasNews")})` : t("openMenu")}
         >
           <Menu className="size-5" />
-          {/* Phones only: the Messages icon (and its badge) is inside this menu there. */}
-          {unread > 0 ? (
+          {/* Phones only: the shortcut icons (and their badges) are inside this menu there. */}
+          {hasNews ? (
             <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-destructive ring-2 ring-background sm:hidden" />
           ) : null}
         </Button>
@@ -154,7 +169,7 @@ export function MobileNav({
             <Link href={item.href}>
               <NavIcon name={item.icon} />
               {item.label}
-              {item.showUnread ? <UnreadBadge count={unread} className="ml-auto ring-0" /> : null}
+              <CountBadge count={badge(item).count} className="ml-auto ring-0" />
             </Link>
           </DropdownMenuItem>
         ))}

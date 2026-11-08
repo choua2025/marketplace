@@ -4,7 +4,8 @@ import { AppError } from "@/server/lib/errors";
 import { getPgErrorCode } from "@/server/lib/db-errors";
 import { dateToTimeString } from "@/server/lib/pg-time";
 import type { Actor } from "@/server/lib/actor";
-import { notifyNewBooking } from "@/server/services/notifications";
+import { EMAIL_MESSAGES, isLocale } from "@/server/email/layout";
+import { notifyBookingStatus, notifyNewBooking } from "@/server/services/notifications";
 import {
   createBookingSchema,
   MAX_LEAD_TIME_MS,
@@ -14,6 +15,14 @@ import {
 } from "@/lib/validations/booking";
 
 const MAX_PENDING_BOOKINGS = 5;
+
+/** Statuses that hold the provider's time -- the same set no_double_booking covers. */
+const BUSY_STATUSES: BookingStatus[] = ["confirmed", "in_progress"];
+
+/** Bookings of `providerId` whose time range overlaps [startAt, endAt). */
+function overlapping(providerId: string, startAt: Date, endAt: Date) {
+  return { providerId, startAt: { lt: endAt }, endAt: { gt: startAt } } satisfies Prisma.BookingWhereInput;
+}
 
 export const bookingSelect = {
   id: true,
@@ -76,7 +85,8 @@ function getLocalWeekdayAndTime(date: Date, timeZone: string): { weekday: number
  * is checked inside one transaction, with the provider row locked first --
  * overlapping *pending* requests are allowed on purpose; the provider
  * picks which one to confirm, and confirming is where the real
- * double-booking guard (the DB exclusion constraint) kicks in.
+ * double-booking guard (the DB exclusion constraint) kicks in. Time the
+ * provider has already confirmed is refused here (SLOT_TAKEN), though.
  */
 export async function createBooking(actor: Actor | null, input: unknown) {
   if (!actor) throw new AppError("UNAUTHORIZED");
@@ -130,6 +140,15 @@ export async function createBooking(actor: Actor | null, input: unknown) {
         startTime >= dateToTimeString(rule.startTime) && endTime <= dateToTimeString(rule.endTime),
     );
     if (!fitsAvailability) throw new AppError("OUTSIDE_WORKING_HOURS");
+
+    const clash = await tx.booking.findFirst({
+      where: {
+        ...overlapping(provider.id, parsed.startAt, parsed.endAt),
+        status: { in: BUSY_STATUSES },
+      },
+      select: { id: true },
+    });
+    if (clash) throw new AppError("SLOT_TAKEN");
 
     const pendingCount = await tx.booking.count({
       where: { customerId: actor.id, status: "pending" },
@@ -186,8 +205,21 @@ function isValidTransition(
 export async function updateBookingStatus(actor: Actor | null, bookingId: string, input: unknown) {
   if (!actor) throw new AppError("UNAUTHORIZED");
   const parsed = updateBookingStatusSchema.parse(input);
+  let by: TransitionActor = "customer";
+  let autoCancelledIds: string[] = [];
 
-  return db.$transaction(async (tx) => {
+  const updated = await db.$transaction(async (tx) => {
+    // Lock the provider before the booking, like createBooking does: a
+    // confirm also cancels the provider's overlapping requests, so two status
+    // changes for one provider must take turns -- locking bookings first,
+    // two overlapping confirms would each wait on the other's row (deadlock).
+    const [owner] = await tx.$queryRaw<{ providerId: string }[]>(
+      Prisma.sql`SELECT "provider_id" AS "providerId" FROM "bookings" WHERE "id" = ${bookingId}`,
+    );
+    if (!owner) throw new AppError("BOOKING_NOT_FOUND");
+    await tx.$queryRaw(
+      Prisma.sql`SELECT "id" FROM "provider_profiles" WHERE "id" = ${owner.providerId} FOR UPDATE`,
+    );
     const [locked] = await tx.$queryRaw<{ id: string }[]>(
       Prisma.sql`SELECT "id" FROM "bookings" WHERE "id" = ${bookingId} FOR UPDATE`,
     );
@@ -203,7 +235,7 @@ export async function updateBookingStatus(actor: Actor | null, bookingId: string
     // Not a party to this booking -- BOOKING_NOT_FOUND, never FORBIDDEN, so
     // an outsider can't tell the booking exists at all (SPEC.md section 7.3).
     if (!isCustomer && !isProvider) throw new AppError("BOOKING_NOT_FOUND");
-    const by: TransitionActor = isProvider ? "provider" : "customer";
+    by = isProvider ? "provider" : "customer";
 
     if (!isValidTransition(booking.status, parsed.status, by)) {
       throw new AppError("INVALID_TRANSITION");
@@ -235,6 +267,10 @@ export async function updateBookingStatus(actor: Actor | null, bookingId: string
       throw error;
     }
 
+    if (parsed.status === "confirmed") {
+      autoCancelledIds = await cancelOverlappingRequests(tx, updated, now);
+    }
+
     if (parsed.status === "completed") {
       await tx.providerProfile.update({
         where: { id: booking.providerId },
@@ -244,4 +280,44 @@ export async function updateBookingStatus(actor: Actor | null, bookingId: string
 
     return updated;
   });
+
+  // After the commit, so nobody is emailed about a change that rolled back.
+  notifyBookingStatus(bookingId, parsed.status, by);
+  for (const id of autoCancelledIds) notifyBookingStatus(id, "slotTaken", "provider");
+  return updated;
+}
+
+/**
+ * Once the provider confirms a booking, the other *pending* requests for
+ * overlapping time can never be confirmed (no_double_booking) -- cancel them
+ * now so those customers aren't left waiting. The reason is stored in each
+ * customer's language, since it's shown to them on the booking page.
+ */
+async function cancelOverlappingRequests(
+  tx: Prisma.TransactionClient,
+  confirmed: { id: string; providerId: string; startAt: Date; endAt: Date },
+  now: Date,
+): Promise<string[]> {
+  const requests = await tx.booking.findMany({
+    where: {
+      ...overlapping(confirmed.providerId, confirmed.startAt, confirmed.endAt),
+      id: { not: confirmed.id },
+      status: "pending",
+    },
+    select: { id: true, customer: { select: { locale: true } } },
+  });
+
+  for (const request of requests) {
+    const locale = isLocale(request.customer.locale) ? request.customer.locale : "th";
+    await tx.booking.update({
+      where: { id: request.id },
+      data: {
+        status: "cancelled",
+        cancelledAt: now,
+        cancelledBy: "provider",
+        cancelReason: EMAIL_MESSAGES[locale].email.slotTakenReason,
+      },
+    });
+  }
+  return requests.map((request) => request.id);
 }

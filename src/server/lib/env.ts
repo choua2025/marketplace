@@ -35,8 +35,7 @@ const envSchema = z.object({
   SUPPORT_EMAIL: emptyStringAsUndefined(z.email().optional()),
   // Development only: deliver every email to this one inbox instead (e.g. the
   // owner of a Resend account still in testing mode). Ignored in production.
-  EMAIL_DEV_REDIRECT_TO: emptyStringAsUndefined(z.email().optional()),
-  // File storage (avatars, portfolio, booking/chat photos, verification docs).
+  EMAIL_DEV_REDIRECT_TO: emptyStringAsUndefined(z.email().optional()),  // File storage (avatars, portfolio, booking/chat photos, verification docs).
   CLOUDINARY_CLOUD_NAME: z.string().min(1),
   CLOUDINARY_API_KEY: z.string().min(1),
   CLOUDINARY_API_SECRET: z.string().min(1),

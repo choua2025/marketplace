@@ -9,9 +9,10 @@ import { uploadFile } from "@/lib/upload-client";
 import { categoryName } from "@/lib/category-name";
 import { bookingTimeProblem, type BookingTimeProblem } from "@/lib/validations/booking";
 import { billableHours } from "@/lib/booking-hours";
+import type { BusyRange, WorkingHoursRule } from "@/lib/booking-slots";
+import { BookingTimePicker } from "@/components/booking/booking-time-picker";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -27,6 +28,13 @@ interface BookingFormProps {
   categories: { slug: string; nameTh: string; nameEn: string; icon: string }[];
   basePrice: string;
   priceUnit: "job" | "hour" | "day";
+  /** Weekly working hours; only times inside them can be picked. */
+  availability: WorkingHoursRule[];
+  timezone: string;
+  /** Time the provider has already confirmed (see BookingTimePicker). */
+  busy: BusyRange[];
+  /** Server time when the page was rendered (see BookingTimePicker). */
+  now: number;
 }
 
 function StepHeading({ step, title }: { step: number; title: string }) {
@@ -40,7 +48,16 @@ function StepHeading({ step, title }: { step: number; title: string }) {
   );
 }
 
-export function BookingForm({ providerId, categories, basePrice, priceUnit }: BookingFormProps) {
+export function BookingForm({
+  providerId,
+  categories,
+  basePrice,
+  priceUnit,
+  availability,
+  timezone,
+  busy,
+  now,
+}: BookingFormProps) {
   const t = useTranslations("booking");
   const tCommon = useTranslations("common");
   const tErrors = useTranslations("errors");
@@ -76,7 +93,8 @@ export function BookingForm({ providerId, categories, basePrice, priceUnit }: Bo
     if (!value) return "—";
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "—";
-    return format.dateTime(date, { dateStyle: "medium", timeStyle: "short" });
+    // On the provider's clock, like the time picker.
+    return format.dateTime(date, { dateStyle: "medium", timeStyle: "short", timeZone: timezone });
   }
 
   async function handleAddPhoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -163,7 +181,8 @@ export function BookingForm({ providerId, categories, basePrice, priceUnit }: Bo
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px] lg:items-start">
-      <div className="flex flex-col gap-6">
+      {/* min-w-0: the scrolling row of day buttons must not widen the page. */}
+      <div className="flex min-w-0 flex-col gap-6">
         <div className="flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-sm">
           <StepHeading step={1} title={t("step1")} />
           <RadioGroup
@@ -194,39 +213,19 @@ export function BookingForm({ providerId, categories, basePrice, priceUnit }: Bo
 
         <div className="flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-sm">
           <StepHeading step={2} title={t("step2")} />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="startAt">{t("startAtLabel")}</Label>
-              <Input
-                id="startAt"
-                type="datetime-local"
-                value={startAt}
-                onChange={(e) => setStartAt(e.target.value)}
-                aria-invalid={
-                  timeProblem === "startTooSoon" || timeProblem === "startTooFar" || undefined
-                }
-                aria-describedby="time-hint"
-                className="h-12"
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="endAt">{t("endAtLabel")}</Label>
-              <Input
-                id="endAt"
-                type="datetime-local"
-                value={endAt}
-                min={startAt || undefined}
-                onChange={(e) => setEndAt(e.target.value)}
-                aria-invalid={
-                  timeProblem === "endBeforeStart" || timeProblem === "tooLong" || undefined
-                }
-                aria-describedby="time-hint"
-                className="h-12"
-              />
-            </div>
-          </div>
+          <BookingTimePicker
+            rules={availability}
+            timezone={timezone}
+            busy={busy}
+            now={now}
+            onChange={(nextStart, nextEnd) => {
+              setStartAt(nextStart);
+              setEndAt(nextEnd);
+            }}
+          />
+          {/* Only if the page was left open long enough for the picked time to pass. */}
           {timeProblem ? (
-            <p id="time-hint" role="alert" className="text-sm text-destructive">
+            <p role="alert" className="text-sm text-destructive">
               {timeProblemMessage[timeProblem]}
             </p>
           ) : null}

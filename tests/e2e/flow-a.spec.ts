@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { bookableSlot, loginAsDevUser, PROVIDER1_LOCATION } from "./helpers";
+import { pickBookingSlot, loginAsDevUser, PROVIDER1_LOCATION } from "./helpers";
 import { SEED_IDS } from "../../src/server/db/seed-ids";
 
 const PROVIDER_NAME = "ร้านแอร์เย็นสบาย";
@@ -32,8 +32,7 @@ test("customer books a provider, provider confirms/completes, customer reviews",
   await customerPage.getByRole("link", { name: "จองงานกับช่างนี้" }).click();
   await customerPage.waitForURL(`**/book/${SEED_IDS.provider(1)}`);
 
-  await customerPage.getByLabel("วันเวลาเริ่มงาน").fill(bookableSlot(2, 10));
-  await customerPage.getByLabel("ถึงเวลา").fill(bookableSlot(2, 12));
+  await pickBookingSlot(customerPage, 2, "10:00", "12:00");
   await customerPage
     .getByLabel("อธิบายปัญหา")
     .fill("แอร์ไม่เย็น ขอให้ช่างมาตรวจสอบและล้างแอร์ให้หน่อยครับ");

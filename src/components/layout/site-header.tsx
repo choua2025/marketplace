@@ -4,7 +4,9 @@ import { getActor } from "@/server/auth/session";
 import { getActorSummary } from "@/server/services/profile";
 import { getSignedImageUrl } from "@/server/services/upload";
 import { countUnreadMessages } from "@/server/services/chat-read";
-import { UnreadMessagesProvider } from "@/components/layout/unread-messages";
+import { countPendingRequests } from "@/server/services/booking-read";
+import type { HeaderCounts } from "@/server/actions/header";
+import { HeaderCountsProvider } from "@/components/layout/header-counts";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { LocaleSwitcher } from "@/components/layout/locale-switcher";
@@ -24,9 +26,10 @@ export async function SiteHeader() {
     getTranslations("userMenu"),
   ]);
   const hasMessages = actor !== null && actor.role !== "admin";
-  const [summary, unreadCount] = await Promise.all([
+  const [summary, unreadCount, pendingCount] = await Promise.all([
     getActorSummary(actor),
     hasMessages ? countUnreadMessages(actor) : 0,
+    countPendingRequests(actor),
   ]);
   const avatarUrl = summary ? await getSignedImageUrl(summary.avatarKey) : null;
   const brand = tCommon("brand");
@@ -44,13 +47,24 @@ export async function SiteHeader() {
     ...(actor?.role === "customer"
       ? [{ href: "/bookings", label: tUser("myBookings"), icon: "bookings" as const }]
       : []),
+    // Providers land on their dashboard, which lists the requests to answer.
+    ...(actor?.role === "provider"
+      ? [
+          {
+            href: "/dashboard",
+            label: tUser("myJobs"),
+            icon: "jobs" as const,
+            badge: "pendingBookings" as const,
+          },
+        ]
+      : []),
     ...(hasMessages
       ? [
           {
             href: "/messages",
             label: tUser("messages"),
             icon: "messages" as const,
-            showUnread: true,
+            badge: "messages" as const,
           },
         ]
       : []),
@@ -74,7 +88,10 @@ export async function SiteHeader() {
 
         <HeaderNav items={navItems} />
 
-        <MaybeUnreadProvider enabled={hasMessages} initialCount={unreadCount}>
+        <MaybeCountsProvider
+          enabled={hasMessages}
+          initialCounts={{ messages: unreadCount, pendingBookings: pendingCount }}
+        >
           <div className="ml-auto flex items-center gap-1.5">
             <ThemeToggle />
             <LocaleSwitcher />
@@ -95,22 +112,22 @@ export async function SiteHeader() {
             )}
             <MobileNav items={navItems} shortcutItems={shortcutItems} authItems={authItems} />
           </div>
-        </MaybeUnreadProvider>
+        </MaybeCountsProvider>
       </div>
     </header>
   );
 }
 
-/** Only signed-in customers/providers poll for unread messages. */
-function MaybeUnreadProvider({
+/** Only signed-in customers/providers poll for badge counts. */
+function MaybeCountsProvider({
   enabled,
-  initialCount,
+  initialCounts,
   children,
 }: {
   enabled: boolean;
-  initialCount: number;
+  initialCounts: HeaderCounts;
   children: React.ReactNode;
 }) {
   if (!enabled) return children;
-  return <UnreadMessagesProvider initialCount={initialCount}>{children}</UnreadMessagesProvider>;
+  return <HeaderCountsProvider initialCounts={initialCounts}>{children}</HeaderCountsProvider>;
 }

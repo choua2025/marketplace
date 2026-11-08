@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { bookableSlot, loginAsDevUser } from "./helpers";
+import { pickBookingSlot, loginAsDevUser } from "./helpers";
 import { SEED_IDS } from "../../src/server/db/seed-ids";
 
 const PROVIDER2_LOCATION = { latitude: 13.6672, longitude: 100.6039 };
@@ -34,8 +34,7 @@ test("provider sees new request, chats in real-time, confirms/starts/completes",
 
   // Customer creates a booking request for provider2.
   await customerPage.goto(`/book/${SEED_IDS.provider(2)}`);
-  await customerPage.getByLabel("วันเวลาเริ่มงาน").fill(bookableSlot(2, 10));
-  await customerPage.getByLabel("ถึงเวลา").fill(bookableSlot(2, 11));
+  await pickBookingSlot(customerPage, 2, "10:00", "11:00");
   await customerPage.getByLabel("อธิบายปัญหา").fill("ไฟในบ้านดับบ่อย อยากให้ช่างมาตรวจระบบไฟ");
   await customerPage.getByLabel("ที่อยู่ที่ให้บริการ").fill("99 ถนนบางนา กรุงเทพฯ");
   await customerPage.getByRole("button", { name: "ส่งคำขอจอง" }).click();

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createBooking, updateBookingStatus } from "@/server/services/booking";
-import { getBookingContact } from "@/server/services/booking-read";
+import { countPendingRequests, getBookingContact } from "@/server/services/booking-read";
 import type { Actor } from "@/server/lib/actor";
 import { timeStringToDate } from "@/server/lib/pg-time";
 import { setEmailProviderForTesting } from "@/server/email";
@@ -321,6 +321,29 @@ describe("getBookingContact", () => {
   });
 });
 
+describe("countPendingRequests", () => {
+  it("counts only the provider's requests still waiting for an answer", async () => {
+    const provider = await createProviderWithAvailability("prov1");
+    const customer = await createCustomerFixture("cust1");
+    const first = await createBooking(customer, validBookingInput(provider.id));
+    await createBooking(
+      customer,
+      validBookingInput(provider.id, {
+        startAt: bookableSlot(3, 9).toISOString(),
+        endAt: bookableSlot(3, 10).toISOString(),
+      }),
+    );
+    expect(await countPendingRequests(provider)).toBe(2);
+
+    await updateBookingStatus(provider, first.id, { status: "confirmed" });
+    expect(await countPendingRequests(provider)).toBe(1);
+
+    // Customers and signed-out visitors have no requests to answer.
+    expect(await countPendingRequests(customer)).toBe(0);
+    expect(await countPendingRequests(null)).toBe(0);
+  });
+});
+
 describe("updateBookingStatus", () => {
   it("rejects the customer confirming their own booking", async () => {
     const provider = await createProviderWithAvailability("prov1");
@@ -353,7 +376,7 @@ describe("updateBookingStatus", () => {
     ).rejects.toMatchObject({ code: "CANCEL_REASON_REQUIRED" });
   });
 
-  it("returns SLOT_TAKEN when confirming a second overlapping booking", async () => {
+  it("cancels overlapping requests when the provider confirms one", async () => {
     const provider = await createProviderWithAvailability("prov1");
     const customer = await createCustomerFixture("cust1");
     const startAt = bookableSlot(2, 10);
@@ -373,10 +396,49 @@ describe("updateBookingStatus", () => {
       }),
     );
 
+    const other = await createCustomerFixture("cust2");
+    const bookingC = await createBooking(
+      other,
+      validBookingInput(provider.id, {
+        startAt: new Date(startAt.getTime() + 2 * 60 * 60 * 1000).toISOString(),
+        endAt: new Date(startAt.getTime() + 4 * 60 * 60 * 1000).toISOString(),
+      }),
+    );
+
     await updateBookingStatus(provider, bookingA.id, { status: "confirmed" });
+
+    // B overlaps A (10-12 vs 11-13): cancelled, with a reason the customer can read.
+    const b = await testOwnerDb.booking.findUniqueOrThrow({ where: { id: bookingB.id } });
+    expect(b).toMatchObject({ status: "cancelled", cancelledBy: "provider" });
+    expect(b.cancelReason).toContain("ยกเลิกอัตโนมัติ");
+    // C starts when A ends (12-14): untouched.
+    const c = await testOwnerDb.booking.findUniqueOrThrow({ where: { id: bookingC.id } });
+    expect(c.status).toBe("pending");
+
     await expect(
       updateBookingStatus(provider, bookingB.id, { status: "confirmed" }),
+    ).rejects.toMatchObject({ code: "INVALID_TRANSITION" });
+  });
+
+  it("refuses a new request for time the provider already confirmed", async () => {
+    const provider = await createProviderWithAvailability("prov1");
+    const customer = await createCustomerFixture("cust1");
+    const other = await createCustomerFixture("cust2");
+    const startAt = bookableSlot(2, 10);
+    const hour = 60 * 60 * 1000;
+    const at = (from: number, to: number) => ({
+      startAt: new Date(startAt.getTime() + from * hour).toISOString(),
+      endAt: new Date(startAt.getTime() + to * hour).toISOString(),
+    });
+
+    const confirmed = await createBooking(customer, validBookingInput(provider.id, at(0, 2)));
+    await updateBookingStatus(provider, confirmed.id, { status: "confirmed" });
+
+    await expect(
+      createBooking(other, validBookingInput(provider.id, at(1, 3))),
     ).rejects.toMatchObject({ code: "SLOT_TAKEN" });
+    // Right after the confirmed job is fine.
+    await expect(createBooking(other, validBookingInput(provider.id, at(2, 3)))).resolves.toBeTruthy();
   });
 
   it("lets only one of two concurrent confirms succeed", async () => {
@@ -405,7 +467,11 @@ describe("updateBookingStatus", () => {
     ]);
 
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
-    expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
+    // The loser finds its request already cancelled by the winner -- a clean
+    // error, never a deadlock.
+    const rejected = results.filter((r) => r.status === "rejected");
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]?.reason).toMatchObject({ code: "INVALID_TRANSITION" });
   });
 
   it("increments completed_jobs when a booking is completed", async () => {
@@ -422,5 +488,102 @@ describe("updateBookingStatus", () => {
       select: { completedJobs: true },
     });
     expect(row?.completedJobs).toBe(1);
+  });
+});
+
+describe("booking status emails", () => {
+  /** The email to `to` whose subject contains `subject` (sending isn't awaited, so wait briefly). */
+  async function emailTo(to: string, subject: string) {
+    for (let i = 0; i < 100; i++) {
+      const found = mail.sent.find((m) => m.to === to && m.subject.includes(subject));
+      if (found) return found;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error(`No email to ${to} with "${subject}" in the subject`);
+  }
+  const linkPath = (text: string) => new URL(text.match(/https?:\/\/\S+/)![0]).pathname;
+
+  it("tells the customer when the provider confirms", async () => {
+    const provider = await createProviderWithAvailability("prov1");
+    const customer = await createCustomerFixture("cust1");
+    const booking = await createBooking(customer, validBookingInput(provider.id));
+
+    await updateBookingStatus(provider, booking.id, { status: "confirmed" });
+
+    const email = await emailTo("cust1@test.local", "ยืนยันงาน");
+    expect(email.subject).toBe("prov1 ยืนยันงานของคุณแล้ว - ช่างดี");
+    expect(email.text).toContain("ช่างไฟฟ้า");
+    expect(linkPath(email.text)).toBe(`/bookings/${booking.id}`);
+  });
+
+  it("tells a customer whose overlapping request was cancelled, with a link to rebook", async () => {
+    const provider = await createProviderWithAvailability("prov1");
+    const customer = await createCustomerFixture("cust1");
+    const other = await createCustomerFixture("cust2");
+    const booking = await createBooking(customer, validBookingInput(provider.id));
+    await createBooking(other, validBookingInput(provider.id));
+
+    await updateBookingStatus(provider, booking.id, { status: "confirmed" });
+
+    const email = await emailTo("cust2@test.local", "ไม่ว่าง");
+    expect(email.subject).toBe("prov1 ไม่ว่างในเวลาที่คุณขอ - ช่างดี");
+    expect(email.text).toContain("ยกเลิกอัตโนมัติ");
+    expect(linkPath(email.text)).toBe(`/book/${provider.id}`);
+  });
+
+  it("links the customer to the review page when the job is completed", async () => {
+    const provider = await createProviderWithAvailability("prov1");
+    const customer = await createCustomerFixture("cust1");
+    const booking = await createBooking(customer, validBookingInput(provider.id));
+
+    await updateBookingStatus(provider, booking.id, { status: "confirmed" });
+    await updateBookingStatus(provider, booking.id, { status: "in_progress" });
+    await updateBookingStatus(provider, booking.id, { status: "completed" });
+
+    const email = await emailTo("cust1@test.local", "ช่วยรีวิว prov1");
+    expect(linkPath(email.text)).toBe(`/bookings/${booking.id}/review`);
+  });
+
+  it("tells the other side about a cancellation, with the reason", async () => {
+    const provider = await createProviderWithAvailability("prov1");
+    const customer = await createCustomerFixture("cust1");
+    const booking = await createBooking(customer, validBookingInput(provider.id));
+
+    await updateBookingStatus(customer, booking.id, {
+      status: "cancelled",
+      cancelReason: "ติดธุระด่วน",
+    });
+
+    const email = await emailTo("prov1@test.local", "ยกเลิก");
+    expect(email.subject).toBe("cust1 ยกเลิกงานช่างไฟฟ้า - ช่างดี");
+    expect(email.text).toContain("ติดธุระด่วน");
+    // The one who cancelled isn't emailed about their own action.
+    expect(mail.sent.some((m) => m.to === "cust1@test.local")).toBe(false);
+  });
+
+  it("doesn't email when the job starts", async () => {
+    const provider = await createProviderWithAvailability("prov1");
+    const customer = await createCustomerFixture("cust1");
+    const booking = await createBooking(customer, validBookingInput(provider.id));
+    await updateBookingStatus(provider, booking.id, { status: "confirmed" });
+    await emailTo("cust1@test.local", "ยืนยันงาน");
+
+    await updateBookingStatus(provider, booking.id, { status: "in_progress" });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    expect(mail.sent.filter((m) => m.to === "cust1@test.local")).toHaveLength(1);
+  });
+
+  it("doesn't email when the change fails", async () => {
+    const provider = await createProviderWithAvailability("prov1");
+    const customer = await createCustomerFixture("cust1");
+    const booking = await createBooking(customer, validBookingInput(provider.id));
+
+    await expect(
+      updateBookingStatus(customer, booking.id, { status: "confirmed" }),
+    ).rejects.toMatchObject({ code: "INVALID_TRANSITION" });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    expect(mail.sent.some((m) => m.to === "cust1@test.local")).toBe(false);
   });
 });

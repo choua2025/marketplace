@@ -28,6 +28,9 @@ function AvatarImage({ className, ...props }: React.ComponentProps<typeof Avatar
   return (
     <AvatarPrimitive.Image
       data-slot="avatar-image"
+      // Google profile pictures (Google sign-ins) answer 429 to requests
+      // that carry our site as the referrer.
+      referrerPolicy="no-referrer"
       className={cn("aspect-square size-full rounded-full object-cover", className)}
       {...props}
     />

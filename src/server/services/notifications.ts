@@ -2,13 +2,17 @@ import { db } from "@/server/db/client";
 import { env } from "@/server/lib/env";
 import { getEmailProvider } from "@/server/email";
 import { isLocale, pageUrl, type Locale } from "@/server/email/layout";
-import { buildNewBookingEmail, buildNewMessageEmail } from "@/server/email/notification-emails";
+import {
+  buildBookingStatusEmail,
+  buildNewBookingEmail,
+  buildNewMessageEmail,
+} from "@/server/email/notification-emails";
 import { categoryName } from "@/lib/category-name";
 
 /**
  * Email notifications for things that happen while the other person isn't on
- * the site: a new booking request (to the provider) and a new chat message
- * (to the other party). Fire-and-forget: a slow or failed email never slows
+ * the site: a new booking request (to the provider), a booking confirmed,
+ * completed or cancelled, and a new chat message (to the other party). Fire-and-forget: a slow or failed email never slows
  * down or breaks the action that triggered it -- failures are only logged.
  */
 
@@ -85,6 +89,92 @@ export function notifyNewBooking(bookingId: string): void {
         categoryName: categoryName(booking.category, locale),
         when,
         url: pageUrl(env.APP_URL, locale, `/bookings/${booking.id}`),
+      }),
+    );
+  });
+}
+
+/**
+ * Tells the other party a booking was confirmed, completed or cancelled --
+ * or, for "slotTaken", tells a customer their request was cancelled because
+ * the provider confirmed someone else for that time. "Started" isn't
+ * emailed -- the provider is already on site by then.
+ */
+export function notifyBookingStatus(
+  bookingId: string,
+  status: string,
+  by: "customer" | "provider",
+): void {
+  if (
+    status !== "confirmed" &&
+    status !== "completed" &&
+    status !== "cancelled" &&
+    status !== "slotTaken"
+  ) {
+    return;
+  }
+
+  run(`booking-${status}`, async () => {
+    const booking = await db.booking.findUnique({
+      where: { id: bookingId },
+      select: {
+        id: true,
+        providerId: true,
+        startAt: true,
+        cancelReason: true,
+        category: { select: { nameTh: true, nameEn: true } },
+        customer: {
+          select: { fullName: true, locale: true, user: { select: { email: true } } },
+        },
+        provider: {
+          select: {
+            displayName: true,
+            timezone: true,
+            profile: { select: { locale: true, user: { select: { email: true } } } },
+          },
+        },
+      },
+    });
+    if (!booking) return;
+
+    const customer = {
+      name: booking.customer.fullName,
+      locale: booking.customer.locale,
+      email: booking.customer.user.email,
+    };
+    const provider = {
+      name: booking.provider.displayName,
+      locale: booking.provider.profile.locale,
+      email: booking.provider.profile.user.email,
+    };
+    // Whoever didn't make the change hears about it.
+    const [recipient, other] = by === "provider" ? [customer, provider] : [provider, customer];
+    if (recipient.email.endsWith(UNDELIVERABLE_DOMAIN)) return;
+
+    const locale = emailLocale(recipient.locale);
+    const when = new Intl.DateTimeFormat(intlLocale(locale), {
+      dateStyle: "full",
+      timeStyle: "short",
+      timeZone: booking.provider.timezone,
+    }).format(booking.startAt);
+    const path =
+      status === "completed"
+        ? `/bookings/${booking.id}/review`
+        : status === "slotTaken"
+          ? `/book/${booking.providerId}`
+          : `/bookings/${booking.id}`;
+
+    await getEmailProvider().send(
+      buildBookingStatusEmail({
+        to: recipient.email,
+        locale,
+        recipientName: recipient.name,
+        otherName: other.name,
+        categoryName: categoryName(booking.category, locale),
+        when,
+        status,
+        cancelReason: booking.cancelReason,
+        url: pageUrl(env.APP_URL, locale, path),
       }),
     );
   });

@@ -16,7 +16,8 @@ export async function loginAsDevUser(page: Page, email: string): Promise<void> {
   for (let attempt = 1; attempt <= 5; attempt++) {
     await page.goto("/login");
     await page.getByLabel("อีเมล").fill(email);
-    await page.getByLabel("รหัสผ่าน").fill(DEV_PASSWORD);
+    // exact: the show/hide button next to the field is labelled "แสดงรหัสผ่าน".
+    await page.getByLabel("รหัสผ่าน", { exact: true }).fill(DEV_PASSWORD);
     await page.getByRole("button", { name: "เข้าสู่ระบบ", exact: true }).click();
 
     const loggedIn = await page
@@ -30,14 +31,30 @@ export async function loginAsDevUser(page: Page, email: string): Promise<void> {
   throw new Error(`loginAsDevUser: failed to log in as ${email} after retries`);
 }
 
-/** A Mon-Sat slot at least `minDaysAhead` days out, formatted for <input type="datetime-local">. */
-export function bookableSlot(minDaysAhead: number, hour: number): string {
-  const date = new Date();
-  date.setDate(date.getDate() + minDaysAhead);
-  date.setHours(hour, 0, 0, 0);
-  while (date.getDay() === 0) {
-    date.setDate(date.getDate() + 1);
-  }
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+/**
+ * Picks a Mon-Sat day at least `minDaysAhead` days out (seeded providers work
+ * Mon-Sat 08:00-18:00, Bangkok time) and a start/end time ("HH:MM") in the
+ * booking form's time picker.
+ */
+export async function pickBookingSlot(
+  page: Page,
+  minDaysAhead: number,
+  start: string,
+  end: string,
+): Promise<void> {
+  const day = new Date(Date.now() + minDaysAhead * 24 * 60 * 60 * 1000);
+  const bangkokDate = () => day.toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+  const bangkokWeekday = () =>
+    day.toLocaleDateString("en-US", { timeZone: "Asia/Bangkok", weekday: "short" });
+  while (bangkokWeekday() === "Sun") day.setTime(day.getTime() + 24 * 60 * 60 * 1000);
+
+  await page.locator(`[data-date="${bangkokDate()}"]`).click();
+  await page
+    .getByRole("group", { name: "วันเวลาเริ่มงาน" })
+    .getByRole("button", { name: start, exact: true })
+    .click();
+  await page
+    .getByRole("group", { name: "ถึงเวลา" })
+    .getByRole("button", { name: end, exact: true })
+    .click();
 }

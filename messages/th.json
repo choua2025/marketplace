@@ -1,7 +1,7 @@
 {
   "common": {
     "brand": "ช่างดี",
-    "metaTitle": "ช่างดี (ChangDee)",
+    "metaTitle": "เว็บไซต์หาช่าง",
     "metaDescription": "แพลตฟอร์มหาช่างใกล้บ้าน จองงาน แชต และรีวิวได้ในที่เดียว",
     "searchCta": "ค้นหาช่าง",
     "login": "เข้าสู่ระบบ",
@@ -13,7 +13,9 @@
     "experience": "{count, plural, =0 {ประสบการณ์ไม่ถึง 1 ปี} other {ประสบการณ์ # ปี}}",
     "saved": "บันทึกแล้ว",
     "removePhoto": "ลบรูปนี้",
-    "notSpecified": "ไม่ระบุ"
+    "notSpecified": "ไม่ระบุ",
+    "showPassword": "แสดงรหัสผ่าน",
+    "hidePassword": "ซ่อนรหัสผ่าน"
   },
   "header": {
     "accountMenuLabel": "เมนูบัญชีผู้ใช้",
@@ -26,13 +28,16 @@
     "register": "สมัครสมาชิก",
     "openMenu": "เปิดเมนู",
     "language": "ภาษา",
-    "unreadCount": "ยังไม่ได้อ่าน {count} ข้อความ"
+    "unreadCount": "ยังไม่ได้อ่าน {count} ข้อความ",
+    "pendingCount": "คำขอใหม่ {count} รายการ",
+    "menuHasNews": "มีรายการใหม่"
   },
   "userMenu": {
     "roleCustomer": "ลูกค้า",
     "roleProvider": "ช่าง",
     "roleAdmin": "แอดมิน",
     "myBookings": "การจองของฉัน",
+    "myJobs": "งานของฉัน",
     "myFavorites": "ช่างที่บันทึกไว้",
     "dashboard": "แดชบอร์ด",
     "verification": "ยืนยันตัวตน",
@@ -265,7 +270,13 @@
     "filtersTitle": "ตัวกรอง",
     "maxPriceLabel": "ราคาสูงสุด",
     "anyPrice": "ทุกราคา",
-    "resultsCount": "พบ {count} รายการ"
+    "resultsCount": "พบ {count} รายการ",
+    "areaBangkok": "กรุงเทพฯ",
+    "areaVientiane": "เวียงจันทน์",
+    "nearArea": "รอบ{area}",
+    "nearYou": "ใกล้ตำแหน่งของคุณ",
+    "emptyStateDefaultArea": "ไม่พบช่างรอบ{area} ถ้าคุณอยู่ที่อื่น กด \"ใช้ตำแหน่งของฉัน\" เพื่อหาช่างใกล้คุณ",
+    "locationFailed": "หาตำแหน่งของคุณไม่ได้ กรุณาอนุญาตการเข้าถึงตำแหน่งในเบราว์เซอร์ แล้วลองอีกครั้ง"
   },
   "errors": {
     "PROVIDER_UNAVAILABLE": "ช่างนี้ไม่พร้อมให้บริการในขณะนี้",
@@ -356,7 +367,9 @@
     "timeStartTooSoon": "ต้องจองล่วงหน้าอย่างน้อย 1 ชั่วโมง",
     "timeStartTooFar": "จองล่วงหน้าได้ไม่เกิน 90 วัน",
     "timeEndBeforeStart": "เวลาสิ้นสุดต้องหลังเวลาเริ่มงาน",
-    "timeTooLong": "งานหนึ่งครั้งนานได้ไม่เกิน 12 ชั่วโมง"
+    "timeTooLong": "งานหนึ่งครั้งนานได้ไม่เกิน 12 ชั่วโมง",
+    "pickDayLabel": "เลือกวัน",
+    "noAvailability": "ช่างยังไม่ได้ตั้งเวลาทำงาน หรือไม่มีเวลาว่างใน 30 วันข้างหน้า ลองทักแชตถามช่างก่อนได้"
   },
   "provider": {
     "reviewCount": "{count} รีวิว",
@@ -436,6 +449,20 @@
     "5": "ศุกร์",
     "6": "เสาร์"
   },
+  "monthsShort": {
+    "0": "ม.ค.",
+    "1": "ก.พ.",
+    "2": "มี.ค.",
+    "3": "เม.ย.",
+    "4": "พ.ค.",
+    "5": "มิ.ย.",
+    "6": "ก.ค.",
+    "7": "ส.ค.",
+    "8": "ก.ย.",
+    "9": "ต.ค.",
+    "10": "พ.ย.",
+    "11": "ธ.ค."
+  },
   "account": {
     "personalInfoTitle": "ข้อมูลส่วนตัว",
     "fullNameLabel": "ชื่อ-นามสกุล",
@@ -455,7 +482,9 @@
     "avatarAlt": "รูปโปรไฟล์",
     "contactNoteProvider": "ลูกค้าจะเห็นเบอร์โทรและ LINE ID หลังจากคุณยืนยันรับงานแล้วเท่านั้น",
     "pageTitle": "โปรไฟล์ของฉัน",
-    "contactNoteCustomer": "ช่างจะเห็นเบอร์โทรและ LINE ID ของคุณหลังจากยืนยันรับงานของคุณแล้วเท่านั้น"
+    "contactNoteCustomer": "ช่างจะเห็นเบอร์โทรและ LINE ID ของคุณหลังจากยืนยันรับงานของคุณแล้วเท่านั้น",
+    "showOnHomepageLabel": "แสดงรูปของฉันบนหน้าแรก",
+    "showOnHomepageHint": "รูปโปรไฟล์ของคุณจะขึ้นในกลุ่ม \"ลูกค้าที่ใช้บริการ\" บนหน้าแรกที่ทุกคนเห็นได้ (ไม่แสดงชื่อ) ปิดได้ทุกเมื่อ"
   },
   "email": {
     "greeting": "สวัสดีคุณ {name}",
@@ -481,7 +510,23 @@
     "newMessagePhoto": "[ส่งรูปภาพ]",
     "newMessageButton": "เปิดแชทเพื่อตอบกลับ",
     "newMessageNote": "เราจะไม่ส่งอีเมลซ้ำสำหรับข้อความถัดไป จนกว่าคุณจะเปิดอ่านแชทนี้",
-    "notificationFooter": "คุณได้รับอีเมลนี้เพราะมีบัญชีกับช่างดี"
+    "notificationFooter": "คุณได้รับอีเมลนี้เพราะมีบัญชีกับช่างดี",
+    "bookingButton": "ดูรายละเอียดงาน",
+    "bookingConfirmedSubject": "{name} ยืนยันงานของคุณแล้ว",
+    "bookingConfirmedIntro": "{name} ยืนยันรับงาน{category}ของคุณแล้ว นัดหมาย: {when}",
+    "bookingConfirmedNote": "ตอนนี้คุณดูเบอร์โทรและ LINE ของช่างได้ในหน้ารายละเอียดงาน",
+    "bookingCompletedSubject": "งาน{category}เสร็จแล้ว ช่วยรีวิว {name} หน่อย",
+    "bookingCompletedIntro": "{name} ปิดงาน{category}ของคุณเรียบร้อยแล้ว ขอบคุณที่ใช้บริการช่างดี",
+    "bookingCompletedAction": "รีวิวของคุณช่วยให้คนอื่นเลือกช่างได้ง่ายขึ้น ใช้เวลาไม่ถึงนาที",
+    "bookingCompletedButton": "เขียนรีวิว",
+    "bookingCancelledSubject": "{name} ยกเลิกงาน{category}",
+    "bookingCancelledIntro": "{name} ยกเลิกงาน{category}ที่นัดไว้ {when}",
+    "bookingCancelledReason": "เหตุผลที่แจ้งไว้:",
+    "bookingSlotTakenSubject": "{name} ไม่ว่างในเวลาที่คุณขอ",
+    "bookingSlotTakenIntro": "{name} รับงานอื่นในช่วง {when} ไปแล้ว คำขอจอง{category}ของคุณจึงถูกยกเลิกอัตโนมัติ",
+    "bookingSlotTakenAction": "คุณยังจองช่างคนเดิมในเวลาอื่นได้ หรือค้นหาช่างคนอื่นที่ว่างในเวลานี้",
+    "bookingSlotTakenButton": "เลือกเวลาใหม่",
+    "slotTakenReason": "ช่างรับงานอื่นในช่วงเวลานี้แล้ว คำขอนี้จึงถูกยกเลิกอัตโนมัติ"
   },
   "auth": {
     "forgotPasswordLink": "ลืมรหัสผ่าน?",
@@ -521,6 +566,19 @@
     "signedInAs": "ตอนนี้คุณเข้าสู่ระบบด้วย",
     "hint": "รายการนี้อาจเป็นของบัญชีอื่น ถ้าคุณเปิดลิงก์จากอีเมล ให้เข้าสู่ระบบด้วยบัญชีที่ได้รับอีเมลนั้น",
     "switchAccount": "เข้าสู่ระบบด้วยบัญชีอื่น",
+    "home": "กลับหน้าแรก"
+  },
+  "errorPage": {
+    "title": "เกิดข้อผิดพลาด",
+    "body": "ขออภัย หน้านี้มีปัญหาชั่วคราว ลองใหม่อีกครั้ง ถ้ายังไม่ได้ให้กลับไปหน้าแรก",
+    "retry": "ลองใหม่",
+    "home": "กลับหน้าแรก",
+    "reference": "รหัสอ้างอิง: {digest}"
+  },
+  "notFoundPage": {
+    "title": "ไม่พบหน้านี้",
+    "body": "ลิงก์อาจผิดหรือหน้านี้ถูกลบไปแล้ว",
+    "search": "ค้นหาช่าง",
     "home": "กลับหน้าแรก"
   }
 }

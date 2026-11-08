@@ -1,40 +1,47 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { unreadMessageCountAction } from "@/app/[locale]/messages/actions";
+import { headerCountsAction, type HeaderCounts } from "@/server/actions/header";
 import { cn } from "@/lib/utils";
 
 const REFRESH_MS = 30_000;
 /** Fired by the chat thread after it marks a conversation read. */
 export const MESSAGES_READ_EVENT = "changdee:messages-read";
 
-const UnreadMessagesContext = createContext(0);
+export type HeaderBadge = keyof HeaderCounts;
+
+const NO_COUNTS: HeaderCounts = { messages: 0, pendingBookings: 0 };
+const HeaderCountsContext = createContext<HeaderCounts>(NO_COUNTS);
 
 /**
- * Holds the signed-in user's unread message count for the header badge.
- * Starts from the server-rendered count, then refreshes every 30s, when the
- * tab regains focus, and right after a conversation is read.
+ * Holds the signed-in user's header badge counts (unread messages, and for
+ * providers, booking requests to answer). Starts from the server-rendered
+ * counts, then refreshes every 30s, when the tab regains focus, and right
+ * after a conversation is read.
  */
-export function UnreadMessagesProvider({
-  initialCount,
+export function HeaderCountsProvider({
+  initialCounts,
   children,
 }: {
-  initialCount: number;
+  initialCounts: HeaderCounts;
   children: React.ReactNode;
 }) {
-  const [count, setCount] = useState(initialCount);
-  const [lastInitial, setLastInitial] = useState(initialCount);
-  if (initialCount !== lastInitial) {
-    // A fresh server render (e.g. router.refresh) brought a newer count.
-    setLastInitial(initialCount);
-    setCount(initialCount);
+  const [counts, setCounts] = useState(initialCounts);
+  const [lastInitial, setLastInitial] = useState(initialCounts);
+  if (
+    initialCounts.messages !== lastInitial.messages ||
+    initialCounts.pendingBookings !== lastInitial.pendingBookings
+  ) {
+    // A fresh server render (e.g. router.refresh after accepting a job) brought newer counts.
+    setLastInitial(initialCounts);
+    setCounts(initialCounts);
   }
 
   const refresh = useCallback(async () => {
     try {
-      setCount(await unreadMessageCountAction());
+      setCounts(await headerCountsAction());
     } catch {
-      // Offline or signed out mid-session: keep the last known count.
+      // Offline or signed out mid-session: keep the last known counts.
     }
   }, []);
 
@@ -54,15 +61,15 @@ export function UnreadMessagesProvider({
     };
   }, [refresh]);
 
-  return <UnreadMessagesContext value={count}>{children}</UnreadMessagesContext>;
+  return <HeaderCountsContext value={counts}>{children}</HeaderCountsContext>;
 }
 
-export function useUnreadMessages() {
-  return useContext(UnreadMessagesContext);
+export function useHeaderCounts() {
+  return useContext(HeaderCountsContext);
 }
 
 /** Red count bubble for an icon's top-right corner; renders nothing at 0. */
-export function UnreadBadge({ count, className }: { count: number; className?: string }) {
+export function CountBadge({ count, className }: { count: number; className?: string }) {
   if (count <= 0) return null;
   return (
     <span

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { db } from "@/server/db/client";
 import { AppError } from "@/server/lib/errors";
 import type { Actor } from "@/server/lib/actor";
@@ -10,6 +11,8 @@ export interface PersonalInfoDto {
   phone: string | null;
   lineId: string | null;
   avatarKey: string | null;
+  /** Agreed to have their photo shown on the public homepage. */
+  showOnHomepage: boolean;
 }
 
 /** The signed-in user's own personal details, for the profile settings page. */
@@ -21,6 +24,7 @@ export async function getMyPersonalInfo(actor: Actor | null): Promise<PersonalIn
     select: {
       fullName: true,
       avatarKey: true,
+      showOnHomepage: true,
       user: { select: { email: true, phoneNumber: true } },
       contact: { select: { phone: true, lineId: true } },
     },
@@ -34,7 +38,16 @@ export async function getMyPersonalInfo(actor: Actor | null): Promise<PersonalIn
     phone: row.contact?.phone ?? row.user.phoneNumber ?? null,
     lineId: row.contact?.lineId ?? null,
     avatarKey: row.avatarKey,
+    showOnHomepage: row.showOnHomepage,
   };
+}
+
+/** Opt in to (or out of) showing the signed-in user's photo on the public homepage. */
+export async function setShowOnHomepage(actor: Actor | null, input: unknown) {
+  if (!actor) throw new AppError("UNAUTHORIZED");
+  const showOnHomepage = z.boolean().parse(input);
+  await db.profile.update({ where: { id: actor.id }, data: { showOnHomepage } });
+  return { showOnHomepage };
 }
 
 /**

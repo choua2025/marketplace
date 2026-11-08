@@ -1,7 +1,7 @@
 {
   "common": {
     "brand": "ຊ່າງດີ",
-    "metaTitle": "ຊ່າງດີ (ChangDee)",
+    "metaTitle": "ເວັບໄຊຫາຊ່າງ",
     "metaDescription": "ແພລດຟອມຊອກຫາຊ່າງໃກ້ບ້ານ ຈອງວຽກ ສົນທະນາ ແລະ ຣີວິວໄດ້ໃນບ່ອນດຽວ",
     "searchCta": "ຊອກຫາຊ່າງ",
     "login": "ເຂົ້າສູ່ລະບົບ",
@@ -13,7 +13,9 @@
     "experience": "{count, plural, =0 {ປະສົບການບໍ່ຮອດ 1 ປີ} other {ປະສົບການ # ປີ}}",
     "saved": "ບັນທຶກແລ້ວ",
     "removePhoto": "ລຶບຮູບນີ້",
-    "notSpecified": "ບໍ່ລະບຸ"
+    "notSpecified": "ບໍ່ລະບຸ",
+    "showPassword": "ສະແດງລະຫັດຜ່ານ",
+    "hidePassword": "ເຊື່ອງລະຫັດຜ່ານ"
   },
   "header": {
     "accountMenuLabel": "ເມນູບັນຊີຜູ້ໃຊ້",
@@ -26,13 +28,16 @@
     "register": "ສະໝັກສະມາຊິກ",
     "openMenu": "ເປີດເມນູ",
     "language": "ພາສາ",
-    "unreadCount": "ຍັງບໍ່ໄດ້ອ່ານ {count} ຂໍ້ຄວາມ"
+    "unreadCount": "ຍັງບໍ່ໄດ້ອ່ານ {count} ຂໍ້ຄວາມ",
+    "pendingCount": "ຄຳຂໍໃໝ່ {count} ລາຍການ",
+    "menuHasNews": "ມີລາຍການໃໝ່"
   },
   "userMenu": {
     "roleCustomer": "ລູກຄ້າ",
     "roleProvider": "ຊ່າງ",
     "roleAdmin": "ແອັດມິນ",
     "myBookings": "ການຈອງຂອງຂ້ອຍ",
+    "myJobs": "ວຽກຂອງຂ້ອຍ",
     "myFavorites": "ຊ່າງທີ່ບັນທຶກໄວ້",
     "dashboard": "ແດຊບອດ",
     "verification": "ຢືນຢັນຕົວຕົນ",
@@ -265,7 +270,13 @@
     "filtersTitle": "ຕົວກອງ",
     "maxPriceLabel": "ລາຄາສູງສຸດ",
     "anyPrice": "ທຸກລາຄາ",
-    "resultsCount": "ພົບ {count} ລາຍການ"
+    "resultsCount": "ພົບ {count} ລາຍການ",
+    "areaBangkok": "ບາງກອກ",
+    "areaVientiane": "ວຽງຈັນ",
+    "nearArea": "ອ້ອມ{area}",
+    "nearYou": "ໃກ້ຕຳແໜ່ງຂອງທ່ານ",
+    "emptyStateDefaultArea": "ບໍ່ພົບຊ່າງອ້ອມ{area} ຖ້າທ່ານຢູ່ບ່ອນອື່ນ ກົດ \"ໃຊ້ຕຳແໜ່ງຂອງຂ້ອຍ\" ເພື່ອຊອກຫາຊ່າງໃກ້ທ່ານ",
+    "locationFailed": "ຫາຕຳແໜ່ງຂອງທ່ານບໍ່ໄດ້ ກະລຸນາອະນຸຍາດການເຂົ້າເຖິງຕຳແໜ່ງໃນບຣາວເຊີ ແລ້ວລອງໃໝ່"
   },
   "errors": {
     "PROVIDER_UNAVAILABLE": "ຊ່າງຄົນນີ້ບໍ່ພ້ອມໃຫ້ບໍລິການໃນຕອນນີ້",
@@ -356,7 +367,9 @@
     "timeStartTooSoon": "ຕ້ອງຈອງລ່ວງໜ້າຢ່າງໜ້ອຍ 1 ຊົ່ວໂມງ",
     "timeStartTooFar": "ຈອງລ່ວງໜ້າໄດ້ບໍ່ເກີນ 90 ວັນ",
     "timeEndBeforeStart": "ເວລາສິ້ນສຸດຕ້ອງຫຼັງເວລາເລີ່ມວຽກ",
-    "timeTooLong": "ວຽກໜຶ່ງຄັ້ງດົນໄດ້ບໍ່ເກີນ 12 ຊົ່ວໂມງ"
+    "timeTooLong": "ວຽກໜຶ່ງຄັ້ງດົນໄດ້ບໍ່ເກີນ 12 ຊົ່ວໂມງ",
+    "pickDayLabel": "ເລືອກວັນ",
+    "noAvailability": "ຊ່າງຍັງບໍ່ໄດ້ຕັ້ງເວລາເຮັດວຽກ ຫຼື ບໍ່ມີເວລາຫວ່າງໃນ 30 ວັນຂ້າງໜ້າ ລອງທັກແຊັດຖາມຊ່າງກ່ອນໄດ້"
   },
   "provider": {
     "reviewCount": "{count} ລີວິວ",
@@ -436,6 +449,20 @@
     "5": "ສຸກ",
     "6": "ເສົາ"
   },
+  "monthsShort": {
+    "0": "ມ.ກ.",
+    "1": "ກ.ພ.",
+    "2": "ມ.ນ.",
+    "3": "ມ.ສ.",
+    "4": "ພ.ພ.",
+    "5": "ມິ.ຖ.",
+    "6": "ກ.ລ.",
+    "7": "ສ.ຫ.",
+    "8": "ກ.ຍ.",
+    "9": "ຕ.ລ.",
+    "10": "ພ.ຈ.",
+    "11": "ທ.ວ."
+  },
   "account": {
     "personalInfoTitle": "ຂໍ້ມູນສ່ວນຕົວ",
     "fullNameLabel": "ຊື່ ແລະ ນາມສະກຸນ",
@@ -455,7 +482,9 @@
     "avatarAlt": "ຮູບໂປຣໄຟລ໌",
     "contactNoteProvider": "ລູກຄ້າຈະເຫັນເບີໂທ ແລະ LINE ID ຫຼັງຈາກທ່ານຢືນຢັນຮັບວຽກແລ້ວເທົ່ານັ້ນ",
     "pageTitle": "ໂປຣໄຟລ໌ຂອງຂ້ອຍ",
-    "contactNoteCustomer": "ຊ່າງຈະເຫັນເບີໂທ ແລະ LINE ID ຂອງທ່ານຫຼັງຈາກຢືນຢັນຮັບວຽກຂອງທ່ານແລ້ວເທົ່ານັ້ນ"
+    "contactNoteCustomer": "ຊ່າງຈະເຫັນເບີໂທ ແລະ LINE ID ຂອງທ່ານຫຼັງຈາກຢືນຢັນຮັບວຽກຂອງທ່ານແລ້ວເທົ່ານັ້ນ",
+    "showOnHomepageLabel": "ສະແດງຮູບຂອງຂ້ອຍໃນໜ້າທຳອິດ",
+    "showOnHomepageHint": "ຮູບໂປຣໄຟລ໌ຂອງທ່ານຈະສະແດງໃນກຸ່ມ \"ລູກຄ້າທີ່ໃຊ້ບໍລິການ\" ໃນໜ້າທຳອິດທີ່ທຸກຄົນເຫັນໄດ້ (ບໍ່ສະແດງຊື່) ປິດໄດ້ທຸກເວລາ"
   },
   "email": {
     "greeting": "ສະບາຍດີ {name}",
@@ -481,7 +510,23 @@
     "newMessagePhoto": "[ສົ່ງຮູບພາບ]",
     "newMessageButton": "ເປີດແຊັດເພື່ອຕອບກັບ",
     "newMessageNote": "ພວກເຮົາຈະບໍ່ສົ່ງອີເມວຊ້ຳສຳລັບຂໍ້ຄວາມຖັດໄປ ຈົນກວ່າທ່ານຈະເປີດອ່ານແຊັດນີ້",
-    "notificationFooter": "ທ່ານໄດ້ຮັບອີເມວນີ້ເພາະມີບັນຊີກັບຊ່າງດີ"
+    "notificationFooter": "ທ່ານໄດ້ຮັບອີເມວນີ້ເພາະມີບັນຊີກັບຊ່າງດີ",
+    "bookingButton": "ເບິ່ງລາຍລະອຽດວຽກ",
+    "bookingConfirmedSubject": "{name} ຢືນຢັນວຽກຂອງທ່ານແລ້ວ",
+    "bookingConfirmedIntro": "{name} ຢືນຢັນຮັບວຽກ{category}ຂອງທ່ານແລ້ວ ນັດໝາຍ: {when}",
+    "bookingConfirmedNote": "ຕອນນີ້ທ່ານເບິ່ງເບີໂທ ແລະ LINE ຂອງຊ່າງໄດ້ໃນໜ້າລາຍລະອຽດວຽກ",
+    "bookingCompletedSubject": "ວຽກ{category}ສຳເລັດແລ້ວ ຊ່ວຍຣີວິວ {name} ແດ່",
+    "bookingCompletedIntro": "{name} ປິດວຽກ{category}ຂອງທ່ານຮຽບຮ້ອຍແລ້ວ ຂອບໃຈທີ່ໃຊ້ບໍລິການຊ່າງດີ",
+    "bookingCompletedAction": "ຣີວິວຂອງທ່ານຊ່ວຍໃຫ້ຄົນອື່ນເລືອກຊ່າງໄດ້ງ່າຍຂຶ້ນ ໃຊ້ເວລາບໍ່ຮອດນາທີ",
+    "bookingCompletedButton": "ຂຽນຣີວິວ",
+    "bookingCancelledSubject": "{name} ຍົກເລີກວຽກ{category}",
+    "bookingCancelledIntro": "{name} ຍົກເລີກວຽກ{category}ທີ່ນັດໄວ້ {when}",
+    "bookingCancelledReason": "ເຫດຜົນທີ່ແຈ້ງໄວ້:",
+    "bookingSlotTakenSubject": "{name} ບໍ່ຫວ່າງໃນເວລາທີ່ທ່ານຂໍ",
+    "bookingSlotTakenIntro": "{name} ຮັບວຽກອື່ນໃນຊ່ວງ {when} ໄປແລ້ວ ຄຳຂໍຈອງ{category}ຂອງທ່ານຈຶ່ງຖືກຍົກເລີກອັດຕະໂນມັດ",
+    "bookingSlotTakenAction": "ທ່ານຍັງຈອງຊ່າງຄົນເດີມໃນເວລາອື່ນໄດ້ ຫຼື ຊອກຫາຊ່າງຄົນອື່ນທີ່ຫວ່າງໃນເວລານີ້",
+    "bookingSlotTakenButton": "ເລືອກເວລາໃໝ່",
+    "slotTakenReason": "ຊ່າງຮັບວຽກອື່ນໃນຊ່ວງເວລານີ້ແລ້ວ ຄຳຂໍນີ້ຈຶ່ງຖືກຍົກເລີກອັດຕະໂນມັດ"
   },
   "auth": {
     "forgotPasswordLink": "ລືມລະຫັດຜ່ານ?",
@@ -522,5 +567,18 @@
     "hint": "ລາຍການນີ້ອາດເປັນຂອງບັນຊີອື່ນ ຖ້າທ່ານເປີດລິ້ງຈາກອີເມວ ໃຫ້ເຂົ້າສູ່ລະບົບດ້ວຍບັນຊີທີ່ໄດ້ຮັບອີເມວນັ້ນ",
     "switchAccount": "ເຂົ້າສູ່ລະບົບດ້ວຍບັນຊີອື່ນ",
     "home": "ກັບໜ້າຫຼັກ"
+  },
+  "errorPage": {
+    "title": "ເກີດຂໍ້ຜິດພາດ",
+    "body": "ຂໍອະໄພ ໜ້ານີ້ມີບັນຫາຊົ່ວຄາວ ລອງໃໝ່ອີກຄັ້ງ ຖ້າຍັງບໍ່ໄດ້ໃຫ້ກັບໄປໜ້າທຳອິດ",
+    "retry": "ລອງໃໝ່",
+    "home": "ກັບໄປໜ້າທຳອິດ",
+    "reference": "ລະຫັດອ້າງອີງ: {digest}"
+  },
+  "notFoundPage": {
+    "title": "ບໍ່ພົບໜ້ານີ້",
+    "body": "ລິ້ງອາດຜິດ ຫຼື ໜ້ານີ້ຖືກລຶບໄປແລ້ວ",
+    "search": "ຊອກຫາຊ່າງ",
+    "home": "ກັບໄປໜ້າທຳອິດ"
   }
 }

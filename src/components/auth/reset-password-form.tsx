@@ -7,7 +7,7 @@ import { Link } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { AuthHeader } from "@/components/auth/auth-shared";
 
@@ -102,9 +102,8 @@ export function ResetPasswordForm({ token, linkError }: { token?: string; linkEr
           <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
             <div className="flex flex-col gap-2">
               <Label htmlFor="newPassword">{t("newPasswordLabel")}</Label>
-              <Input
+              <PasswordInput
                 id="newPassword"
-                type="password"
                 autoComplete="new-password"
                 minLength={MIN_PASSWORD_LENGTH}
                 value={password}
@@ -115,9 +114,8 @@ export function ResetPasswordForm({ token, linkError }: { token?: string; linkEr
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="confirmPassword">{t("confirmPasswordLabel")}</Label>
-              <Input
+              <PasswordInput
                 id="confirmPassword"
-                type="password"
                 autoComplete="new-password"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}

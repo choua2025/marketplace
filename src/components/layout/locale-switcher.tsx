@@ -1,13 +1,28 @@
 "use client";
 
-import { ChevronDown, Globe } from "lucide-react";
+import { Globe } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { getPathname, usePathname } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
+/** Each language's name in itself, for the menu. */
 const LOCALE_LABEL: Record<string, string> = {
   th: "ไทย",
   en: "English",
+  lo: "ລາວ",
+};
+/** Shown on the button next to the globe; phones show only the globe. */
+const LOCALE_SHORT: Record<string, string> = {
+  th: "ไทย",
+  en: "EN",
   lo: "ລາວ",
 };
 
@@ -20,27 +35,39 @@ export function LocaleSwitcher() {
   // the [locale] root layout, and re-rendering that in the browser re-creates
   // its inline theme <script> (React warns and never runs it) and keeps the
   // old <html lang>. A fresh document from the server avoids both.
+  //
+  // Thai URLs have no prefix, and the proxy sends an unprefixed URL back to
+  // the language remembered in the NEXT_LOCALE cookie (e.g. /en), so store
+  // the new language there first.
   function switchTo(nextLocale: string) {
+    if (nextLocale === locale) return;
+    document.cookie = `NEXT_LOCALE=${nextLocale}; path=/; max-age=31536000; SameSite=Lax`;
     const target = getPathname({ href: pathname, locale: nextLocale });
     window.location.assign(target + window.location.search);
   }
 
   return (
-    <div className="relative">
-      <Globe className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-      <select
-        aria-label={t("language")}
-        value={locale}
-        onChange={(e) => switchTo(e.target.value)}
-        className="h-9 cursor-pointer appearance-none rounded-lg border bg-background py-1 pr-7 pl-8 text-sm transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
-      >
-        {routing.locales.map((l) => (
-          <option key={l} value={l}>
-            {LOCALE_LABEL[l]}
-          </option>
-        ))}
-      </select>
-      <ChevronDown className="pointer-events-none absolute top-1/2 right-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          className="h-9 gap-1.5 px-2 text-muted-foreground hover:text-foreground"
+          aria-label={`${t("language")}: ${LOCALE_LABEL[locale]}`}
+          title={t("language")}
+        >
+          <Globe className="size-4.5" />
+          <span className="hidden text-sm font-medium sm:inline">{LOCALE_SHORT[locale]}</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-36">
+        <DropdownMenuRadioGroup value={locale} onValueChange={switchTo}>
+          {routing.locales.map((l) => (
+            <DropdownMenuRadioItem key={l} value={l} lang={l}>
+              {LOCALE_LABEL[l]}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

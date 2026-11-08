@@ -1,7 +1,7 @@
 {
   "common": {
     "brand": "ChangDee",
-    "metaTitle": "ChangDee",
+    "metaTitle": "Website Find Chang",
     "metaDescription": "Find local service providers, book jobs, chat, and leave reviews -- all in one place.",
     "searchCta": "Find a pro",
     "login": "Log in",
@@ -13,7 +13,9 @@
     "experience": "{count, plural, =0 {Under 1 year of experience} one {# year of experience} other {# years of experience}}",
     "saved": "Saved",
     "removePhoto": "Remove this photo",
-    "notSpecified": "Not provided"
+    "notSpecified": "Not provided",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "header": {
     "accountMenuLabel": "Account menu",
@@ -26,13 +28,16 @@
     "register": "Sign up",
     "openMenu": "Open menu",
     "language": "Language",
-    "unreadCount": "{count, plural, one {# unread message} other {# unread messages}}"
+    "unreadCount": "{count, plural, one {# unread message} other {# unread messages}}",
+    "pendingCount": "{count, plural, one {# new request} other {# new requests}}",
+    "menuHasNews": "new activity"
   },
   "userMenu": {
     "roleCustomer": "Customer",
     "roleProvider": "Provider",
     "roleAdmin": "Admin",
     "myBookings": "My bookings",
+    "myJobs": "My jobs",
     "myFavorites": "Saved providers",
     "dashboard": "Dashboard",
     "verification": "Verification",
@@ -265,7 +270,13 @@
     "filtersTitle": "Filters",
     "maxPriceLabel": "Max price",
     "anyPrice": "Any price",
-    "resultsCount": "{count} results"
+    "resultsCount": "{count} results",
+    "areaBangkok": "Bangkok",
+    "areaVientiane": "Vientiane",
+    "nearArea": "around {area}",
+    "nearYou": "near your location",
+    "emptyStateDefaultArea": "No providers found around {area}. If you are somewhere else, tap \"Use my location\" to find pros near you.",
+    "locationFailed": "Couldn't get your location. Allow location access in your browser and try again."
   },
   "errors": {
     "PROVIDER_UNAVAILABLE": "This provider is not available right now.",
@@ -356,7 +367,9 @@
     "timeStartTooSoon": "Start at least 1 hour from now",
     "timeStartTooFar": "Start within the next 90 days",
     "timeEndBeforeStart": "End time must be after the start time",
-    "timeTooLong": "A booking can be at most 12 hours long"
+    "timeTooLong": "A booking can be at most 12 hours long",
+    "pickDayLabel": "Pick a day",
+    "noAvailability": "This pro hasn’t set working hours, or has no free time in the next 30 days. You can message them first."
   },
   "provider": {
     "reviewCount": "{count, plural, one {# review} other {# reviews}}",
@@ -436,6 +449,20 @@
     "5": "Friday",
     "6": "Saturday"
   },
+  "monthsShort": {
+    "0": "Jan",
+    "1": "Feb",
+    "2": "Mar",
+    "3": "Apr",
+    "4": "May",
+    "5": "Jun",
+    "6": "Jul",
+    "7": "Aug",
+    "8": "Sep",
+    "9": "Oct",
+    "10": "Nov",
+    "11": "Dec"
+  },
   "account": {
     "personalInfoTitle": "Personal information",
     "fullNameLabel": "Full name",
@@ -455,7 +482,9 @@
     "avatarAlt": "Profile photo",
     "contactNoteProvider": "Customers only see your phone and LINE ID after you accept their booking.",
     "pageTitle": "My profile",
-    "contactNoteCustomer": "Providers only see your phone and LINE ID after they accept your booking."
+    "contactNoteCustomer": "Providers only see your phone and LINE ID after they accept your booking.",
+    "showOnHomepageLabel": "Show my photo on the homepage",
+    "showOnHomepageHint": "Your profile photo appears among \"customers served\" on the public homepage (your name isn't shown). You can turn this off any time."
   },
   "email": {
     "greeting": "Hi {name},",
@@ -481,7 +510,23 @@
     "newMessagePhoto": "[Sent a photo]",
     "newMessageButton": "Open chat to reply",
     "newMessageNote": "We won't email you about further messages until you open this chat.",
-    "notificationFooter": "You're getting this email because you have a ChangDee account."
+    "notificationFooter": "You're getting this email because you have a ChangDee account.",
+    "bookingButton": "View booking",
+    "bookingConfirmedSubject": "{name} confirmed your booking",
+    "bookingConfirmedIntro": "{name} accepted your {category} booking for {when}.",
+    "bookingConfirmedNote": "You can now see the pro’s phone number and LINE ID on the booking page.",
+    "bookingCompletedSubject": "Your {category} job is done – how was {name}?",
+    "bookingCompletedIntro": "{name} marked your {category} job as completed. Thanks for using ChangDee!",
+    "bookingCompletedAction": "A quick review helps other customers choose a pro. It takes less than a minute.",
+    "bookingCompletedButton": "Write a review",
+    "bookingCancelledSubject": "{name} cancelled the {category} booking",
+    "bookingCancelledIntro": "{name} cancelled the {category} booking scheduled for {when}.",
+    "bookingCancelledReason": "Reason given:",
+    "bookingSlotTakenSubject": "{name} isn't available at the time you asked for",
+    "bookingSlotTakenIntro": "{name} has accepted another job at {when}, so your {category} request was cancelled automatically.",
+    "bookingSlotTakenAction": "You can still book the same pro at another time, or find another pro who is free then.",
+    "bookingSlotTakenButton": "Pick a new time",
+    "slotTakenReason": "The pro accepted another job at this time, so this request was cancelled automatically."
   },
   "auth": {
     "forgotPasswordLink": "Forgot password?",
@@ -521,6 +566,19 @@
     "signedInAs": "You are signed in as",
     "hint": "This may belong to a different account. If you opened a link from an email, sign in with the account that received it.",
     "switchAccount": "Sign in with another account",
+    "home": "Back to home"
+  },
+  "errorPage": {
+    "title": "Something went wrong",
+    "body": "Sorry, this page has a temporary problem. Please try again, or go back to the home page.",
+    "retry": "Try again",
+    "home": "Back to home",
+    "reference": "Reference: {digest}"
+  },
+  "notFoundPage": {
+    "title": "Page not found",
+    "body": "The link may be wrong, or the page has been removed.",
+    "search": "Find a pro",
     "home": "Back to home"
   }
 }

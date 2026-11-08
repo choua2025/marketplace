@@ -13,7 +13,7 @@ import {
   sendMessageAction,
 } from "@/app/[locale]/messages/[conversationId]/actions";
 import { uploadFile } from "@/lib/upload-client";
-import { MESSAGES_READ_EVENT } from "@/components/layout/unread-messages";
+import { MESSAGES_READ_EVENT } from "@/components/layout/header-counts";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";

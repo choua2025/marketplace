@@ -2,7 +2,8 @@ import { db } from "@/server/db/client";
 import { bookingSelect } from "@/server/services/booking";
 import { AppError } from "@/server/lib/errors";
 import type { Actor } from "@/server/lib/actor";
-import type { BookingStatus } from "@/lib/validations/booking";
+import { MAX_LEAD_TIME_MS, type BookingStatus } from "@/lib/validations/booking";
+import type { BusyRange } from "@/lib/booking-slots";
 
 const CONTACT_VISIBLE_STATUSES: BookingStatus[] = ["confirmed", "in_progress", "completed"];
 
@@ -99,6 +100,34 @@ export async function listMyBookings(
     counterpartyName:
       actor.id === row.customerId ? row.provider.displayName : row.customer.fullName,
   }));
+}
+
+/**
+ * For the header's badge on the provider's jobs icon: booking requests still
+ * waiting for them to accept or decline. 0 for anyone who isn't a provider.
+ */
+export async function countPendingRequests(actor: Actor | null): Promise<number> {
+  if (actor?.role !== "provider") return 0;
+  return db.booking.count({ where: { providerId: actor.id, status: "pending" } });
+}
+
+/**
+ * When the provider is already booked (confirmed or in progress), for the
+ * booking form's time picker. Only the times -- never who or what for.
+ */
+export async function listBusyTimes(providerId: string): Promise<BusyRange[]> {
+  const now = new Date();
+  const rows = await db.booking.findMany({
+    where: {
+      providerId,
+      status: { in: ["confirmed", "in_progress"] },
+      endAt: { gt: now },
+      startAt: { lt: new Date(now.getTime() + MAX_LEAD_TIME_MS) },
+    },
+    select: { startAt: true, endAt: true },
+    orderBy: { startAt: "asc" },
+  });
+  return rows.map((row) => ({ start: row.startAt.getTime(), end: row.endAt.getTime() }));
 }
 
 export type BookingDetailDto = Awaited<ReturnType<typeof getBookingDetail>>;

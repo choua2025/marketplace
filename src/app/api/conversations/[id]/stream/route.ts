@@ -30,40 +30,60 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const encoder = new TextEncoder();
 
-  const stream = new ReadableStream({
+  // The stream can end three ways: the request is aborted, the runtime
+  // cancels the stream (client gone -- not always reported as an abort), or a
+  // write fails because the stream is already closed. All of them stop the
+  // heartbeat and the Postgres subscription exactly once.
+  let closed = false;
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
+  let unsubscribe: (() => void) | undefined;
+  let streamController: ReadableStreamDefaultController<Uint8Array> | undefined;
+
+  function cleanup() {
+    if (closed) return;
+    closed = true;
+    clearInterval(heartbeat);
+    unsubscribe?.();
+    try {
+      streamController?.close();
+    } catch {
+      // already closed by the client disconnecting
+    }
+  }
+
+  function write(chunk: string) {
+    if (closed || !streamController) return;
+    try {
+      streamController.enqueue(encoder.encode(chunk));
+    } catch {
+      cleanup();
+    }
+  }
+
+  const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      let closed = false;
+      streamController = controller;
+      request.signal.addEventListener("abort", cleanup);
 
-      function send(event: string, data: unknown) {
-        if (closed) return;
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
-      }
+      heartbeat = setInterval(() => write(`: heartbeat\n\n`), HEARTBEAT_MS);
 
-      const heartbeat = setInterval(() => {
-        if (closed) return;
-        controller.enqueue(encoder.encode(`: heartbeat\n\n`));
-      }, HEARTBEAT_MS);
-
-      const unsubscribe = await subscribeToConversation(conversationId, async (messageId) => {
+      const stop = await subscribeToConversation(conversationId, async (messageId) => {
         const message = await getMessageById(Number(messageId));
         if (!message) return;
         const imageUrl = await getSignedImageUrl(message.imageKey);
-        send("message", { ...message, imageUrl });
+        write(`event: message\ndata: ${JSON.stringify({ ...message, imageUrl })}\n\n`);
       });
 
-      function cleanup() {
-        if (closed) return;
-        closed = true;
-        clearInterval(heartbeat);
-        unsubscribe();
-        try {
-          controller.close();
-        } catch {
-          // already closed by the client disconnecting
-        }
+      // The client may have left while we were subscribing.
+      if (closed || request.signal.aborted) {
+        stop();
+        cleanup();
+        return;
       }
-
-      request.signal.addEventListener("abort", cleanup);
+      unsubscribe = stop;
+    },
+    cancel() {
+      cleanup();
     },
   });
 

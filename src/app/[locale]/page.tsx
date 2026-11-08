@@ -98,13 +98,26 @@ export default async function HomePage() {
                     {stats.recentCustomers.map((customer, index) => (
                       <span
                         key={index}
-                        className="flex size-10 items-center justify-center rounded-full border-2 border-background text-sm font-semibold"
+                        className="relative flex size-10 items-center justify-center overflow-hidden rounded-full border-2 border-background text-sm font-semibold"
                         style={{
                           background: `hsl(${customer.hue} 70% 88%)`,
                           color: `hsl(${customer.hue} 55% 30%)`,
                         }}
                       >
-                        {customer.initial}
+                        {customer.imageUrl ? (
+                          <Image
+                            src={customer.imageUrl}
+                            alt=""
+                            fill
+                            sizes="40px"
+                            unoptimized
+                            // Google sign-in photos refuse requests with our site as referrer.
+                            referrerPolicy="no-referrer"
+                            className="object-cover"
+                          />
+                        ) : (
+                          customer.initial
+                        )}
                       </span>
                     ))}
                   </div>

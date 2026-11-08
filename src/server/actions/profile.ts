@@ -1,13 +1,17 @@
 "use server";
 
 import { getActor } from "@/server/auth/session";
-import { becomeProvider, updatePersonalInfo } from "@/server/services/profile";
+import { becomeProvider, setShowOnHomepage, updatePersonalInfo } from "@/server/services/profile";
 import { confirmAvatarUpload } from "@/server/services/upload";
 import { toActionResult } from "@/server/actions/result";
 
 // Personal info and profile photo work for any signed-in user (customer or provider).
 export async function updatePersonalInfoAction(input: unknown) {
   return toActionResult(async () => updatePersonalInfo(await getActor(), input));
+}
+
+export async function setShowOnHomepageAction(show: unknown) {
+  return toActionResult(async () => setShowOnHomepage(await getActor(), show));
 }
 
 export async function confirmAvatarUploadAction(key: string) {

@@ -22,7 +22,15 @@ import {
 import { ProviderMapLoader } from "@/components/map/provider-map-loader";
 import { ProviderCard } from "@/components/search/provider-card";
 
-const BANGKOK_CENTER = { lat: 13.7563, lng: 100.5018 };
+/**
+ * Where search starts before the visitor shares their location: the capital
+ * of the country the site language points to.
+ */
+const DEFAULT_AREAS = {
+  bangkok: { lat: 13.7563, lng: 100.5018 },
+  vientiane: { lat: 17.9757, lng: 102.6331 },
+} as const;
+type DefaultArea = keyof typeof DEFAULT_AREAS;
 const DISTANCE_OPTIONS = [5, 10, 25, 50, 200] as const;
 const PRICE_OPTIONS = [500, 1000, 2000, 5000, 10000] as const;
 
@@ -40,12 +48,18 @@ export function SearchClient({ allCategories, initialCategorySlug }: SearchClien
   const categoryName = (category: CategoryDto) =>
     locale === "th" ? category.nameTh : category.nameEn;
 
-  // Defaults to Bangkok immediately, no permission prompt on load --
+  // Starts at a default city immediately, no permission prompt on load --
   // asking for geolocation before the user has done anything is a
   // Lighthouse best-practices violation and bad UX besides. "Use my
   // location" below requests it only on explicit user action.
-  const [location, setLocation] = useState(BANGKOK_CENTER);
+  const defaultArea: DefaultArea = locale === "lo" ? "vientiane" : "bangkok";
+  const [location, setLocation] = useState<{ lat: number; lng: number }>(
+    DEFAULT_AREAS[defaultArea],
+  );
+  const [usingMyLocation, setUsingMyLocation] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [locationFailed, setLocationFailed] = useState(false);
+  const areaName = t(defaultArea === "vientiane" ? "areaVientiane" : "areaBangkok");
   const [category, setCategory] = useState(initialCategorySlug ?? "any");
   const [sort, setSort] = useState("recommended");
   const [minRating, setMinRating] = useState("any");
@@ -59,15 +73,23 @@ export function SearchClient({ allCategories, initialCategorySlug }: SearchClien
   const [error, setError] = useState<string | null>(null);
 
   function useMyLocation() {
-    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    setLocationFailed(false);
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocationFailed(true);
+      return;
+    }
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setLocating(false);
+        setUsingMyLocation(true);
         setLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
       },
-      () => setLocating(false),
-      { timeout: 5000 },
+      () => {
+        setLocating(false);
+        setLocationFailed(true);
+      },
+      { timeout: 10000 },
     );
   }
 
@@ -195,12 +217,19 @@ export function SearchClient({ allCategories, initialCategorySlug }: SearchClien
           )}
           {t("useMyLocation")}
         </Button>
+        {locationFailed ? (
+          <p role="alert" className="text-xs text-destructive">
+            {t("locationFailed")}
+          </p>
+        ) : null}
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col gap-4 lg:min-h-0">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground">
             {loading ? "…" : t("resultsCount", { count: results.length })}
+            {" · "}
+            {usingMyLocation ? t("nearYou") : t("nearArea", { area: areaName })}
           </p>
           <div className="flex items-center gap-2">
             <Select value={sort} onValueChange={setSort}>
@@ -259,7 +288,24 @@ export function SearchClient({ allCategories, initialCategorySlug }: SearchClien
           ) : error ? (
             <p className="text-sm text-destructive">{error}</p>
           ) : results.length === 0 ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">{t("emptyState")}</p>
+            usingMyLocation ? (
+              <p className="py-12 text-center text-sm text-muted-foreground">{t("emptyState")}</p>
+            ) : (
+              // Still searching the default city: the visitor may simply be elsewhere.
+              <div className="flex flex-col items-center gap-4 py-12 text-center">
+                <p className="max-w-md text-sm text-muted-foreground">
+                  {t("emptyStateDefaultArea", { area: areaName })}
+                </p>
+                <Button type="button" disabled={locating} onClick={useMyLocation}>
+                  {locating ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <LocateFixed className="size-4" />
+                  )}
+                  {t("useMyLocation")}
+                </Button>
+              </div>
+            )
           ) : view === "list" ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {results.map((r) => (
