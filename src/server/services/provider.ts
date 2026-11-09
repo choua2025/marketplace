@@ -1,6 +1,7 @@
 import { db } from "@/server/db/client";
 import { Prisma } from "@/server/db/generated/prisma/client";
 import { AppError } from "@/server/lib/errors";
+import { enforceRateLimit } from "@/server/lib/rate-limit";
 import type { Actor } from "@/server/lib/actor";
 import { dateToTimeString, timeStringToDate } from "@/server/lib/pg-time";
 import { experienceSinceYear, experienceYears } from "@/lib/experience";
@@ -80,6 +81,7 @@ export async function updateProviderProfile(
   input: unknown,
 ): Promise<ProviderProfileDto> {
   const provider = assertProvider(actor);
+  await enforceRateLimit("profileUpdate", provider.id);
   const parsed = updateProviderProfileSchema.parse(input);
   const hasLocation = parsed.latitude !== undefined;
 
@@ -115,6 +117,7 @@ export async function setProviderCategories(
   input: unknown,
 ): Promise<string[]> {
   const provider = assertProvider(actor);
+  await enforceRateLimit("profileUpdate", provider.id);
   const { categorySlugs } = setProviderCategoriesSchema.parse(input);
 
   const matched = await db.category.findMany({
@@ -147,6 +150,7 @@ export async function setAvailabilityRules(
   input: unknown,
 ): Promise<AvailabilityRuleDto[]> {
   const provider = assertProvider(actor);
+  await enforceRateLimit("profileUpdate", provider.id);
   const { rules } = setAvailabilityRulesSchema.parse(input);
 
   const seen = new Set<string>();

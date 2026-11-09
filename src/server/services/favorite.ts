@@ -1,5 +1,6 @@
 import { db } from "@/server/db/client";
 import { AppError } from "@/server/lib/errors";
+import { enforceRateLimit } from "@/server/lib/rate-limit";
 import type { Actor } from "@/server/lib/actor";
 import { getSignedImageUrl } from "@/server/services/upload";
 
@@ -12,6 +13,7 @@ function assertCustomer(actor: Actor | null): Actor {
 /** Adds a provider to the customer's favorites. Idempotent. */
 export async function addFavorite(actor: Actor | null, providerId: string): Promise<void> {
   const customer = assertCustomer(actor);
+  await enforceRateLimit("favorite", customer.id);
 
   const provider = await db.providerProfile.findUnique({
     where: { id: providerId },
@@ -29,6 +31,7 @@ export async function addFavorite(actor: Actor | null, providerId: string): Prom
 /** Removes a provider from the customer's favorites. Idempotent. */
 export async function removeFavorite(actor: Actor | null, providerId: string): Promise<void> {
   const customer = assertCustomer(actor);
+  await enforceRateLimit("favorite", customer.id);
   await db.favorite.deleteMany({ where: { customerId: customer.id, providerId } });
 }
 

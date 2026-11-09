@@ -1,6 +1,7 @@
 import { db } from "@/server/db/client";
 import type { Prisma } from "@/server/db/generated/prisma/client";
 import { AppError } from "@/server/lib/errors";
+import { enforceRateLimit } from "@/server/lib/rate-limit";
 import type { Actor } from "@/server/lib/actor";
 import { createReviewSchema, updateReviewSchema } from "@/lib/validations/review";
 
@@ -28,6 +29,7 @@ export type ReviewDto = Awaited<ReturnType<typeof createReview>>;
  */
 export async function createReview(actor: Actor | null, input: unknown) {
   if (!actor) throw new AppError("UNAUTHORIZED");
+  await enforceRateLimit("review", actor.id);
   const parsed = createReviewSchema.parse(input);
 
   const booking = await db.booking.findUnique({
@@ -67,6 +69,7 @@ export async function createReview(actor: Actor | null, input: unknown) {
 /** Edits an existing review's rating/comment, within the 7-day edit window. */
 export async function updateReview(actor: Actor | null, reviewId: string, input: unknown) {
   if (!actor) throw new AppError("UNAUTHORIZED");
+  await enforceRateLimit("review", actor.id);
   const parsed = updateReviewSchema.parse(input);
 
   const review = await db.review.findUnique({ where: { id: reviewId }, select: reviewSelect });

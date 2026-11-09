@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { db } from "@/server/db/client";
 import { AppError } from "@/server/lib/errors";
+import { enforceRateLimit } from "@/server/lib/rate-limit";
 import type { Actor } from "@/server/lib/actor";
 import { updatePersonalInfoSchema } from "@/lib/validations/profile";
 
@@ -45,6 +46,7 @@ export async function getMyPersonalInfo(actor: Actor | null): Promise<PersonalIn
 /** Opt in to (or out of) showing the signed-in user's photo on the public homepage. */
 export async function setShowOnHomepage(actor: Actor | null, input: unknown) {
   if (!actor) throw new AppError("UNAUTHORIZED");
+  await enforceRateLimit("profileUpdate", actor.id);
   const showOnHomepage = z.boolean().parse(input);
   await db.profile.update({ where: { id: actor.id }, data: { showOnHomepage } });
   return { showOnHomepage };
@@ -57,6 +59,7 @@ export async function setShowOnHomepage(actor: Actor | null, input: unknown) {
  */
 export async function updatePersonalInfo(actor: Actor | null, input: unknown) {
   if (!actor) throw new AppError("UNAUTHORIZED");
+  await enforceRateLimit("profileUpdate", actor.id);
   const { fullName, phone, lineId } = updatePersonalInfoSchema.parse(input);
 
   const contact = { phone: phone || null, lineId: lineId || null };

@@ -201,7 +201,7 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
@@ -216,7 +216,7 @@ server {
         proxy_read_timeout 1h;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
@@ -229,6 +229,11 @@ server {
 ```
 
 ออก TLS certificate ด้วย Let's Encrypt (`certbot --nginx -d changdee.example.com`) แล้ว reload Nginx
+
+**สำคัญเรื่อง rate limit:** แอปจำกัดจำนวนครั้งต่อ IP (เข้าสู่ระบบ, ขอ OTP, ค้นหา) โดยอ่าน IP จาก header `X-Forwarded-For` ดังนั้น
+Nginx ต้อง**เขียนทับ** header นี้ด้วย `$remote_addr` ตามตัวอย่างด้านบน ห้ามใช้ `$proxy_add_x_forwarded_for` เพราะจะต่อท้ายค่าที่ผู้ใช้ส่งมาเอง
+ทำให้ปลอม IP หลบ rate limit ได้ และห้ามเปิดพอร์ต 3000 ของแอปให้คนภายนอกเข้าถึงตรง ๆ โดยไม่ผ่าน Nginx
+(ถ้ามี proxy อีกชั้นข้างหน้า เช่น Cloudflare ต้องปรับให้ใช้ IP จริงจาก proxy นั้นแทน)
 
 ### 4. ตรวจสอบหลัง deploy
 

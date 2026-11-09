@@ -379,3 +379,14 @@ enum VerificationStatus {
 
   @@map("verification_status")
 }
+
+/// Rate-limit counters (src/server/lib/rate-limit.ts). UNLOGGED in the
+/// migration -- not representable here.
+model RateLimit {
+  key     String   @id @db.VarChar(200)
+  count   Int
+  resetAt DateTime @map("reset_at") @db.Timestamptz(6)
+
+  @@index([resetAt])
+  @@map("rate_limits")
+}

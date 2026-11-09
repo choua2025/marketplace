@@ -4,6 +4,8 @@ import { getActor } from "@/server/auth/session";
 import { searchProviders, type SearchResultDto } from "@/server/services/search";
 import { getSignedImageUrl } from "@/server/services/upload";
 import { listFavoritedProviderIds } from "@/server/services/favorite";
+import { clientIp, enforceRateLimit } from "@/server/lib/rate-limit";
+import { toActionResult } from "@/server/actions/result";
 
 export type SearchResultWithAvatarDto = SearchResultDto & {
   avatarUrl: string | null;
@@ -21,25 +23,21 @@ export async function searchProvidersAction(
   // the heart button entirely rather than showing one that always fails.
   const canFavorite = actor?.role === "customer";
 
-  try {
+  const result = await toActionResult(async () => {
+    // Per IP: anyone can search, signed in or not.
+    await enforceRateLimit("search", await clientIp());
     const results = await searchProviders(null, input);
     const favorited = await listFavoritedProviderIds(
       actor,
       results.map((r) => r.id),
     );
-    const data = await Promise.all(
-      results.map(async (result) => ({
-        ...result,
-        avatarUrl: await getSignedImageUrl(result.avatarKey),
-        isFavorited: favorited.has(result.id),
+    return Promise.all(
+      results.map(async (r) => ({
+        ...r,
+        avatarUrl: await getSignedImageUrl(r.avatarKey),
+        isFavorited: favorited.has(r.id),
       })),
     );
-    return { ok: true, data, canFavorite };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "UNKNOWN_ERROR",
-      canFavorite,
-    };
-  }
+  });
+  return { ...result, canFavorite };
 }

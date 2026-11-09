@@ -1,6 +1,7 @@
 import { db } from "@/server/db/client";
 import { Prisma } from "@/server/db/generated/prisma/client";
 import { AppError } from "@/server/lib/errors";
+import { enforceRateLimit } from "@/server/lib/rate-limit";
 import { getPgErrorCode } from "@/server/lib/db-errors";
 import { dateToTimeString } from "@/server/lib/pg-time";
 import type { Actor } from "@/server/lib/actor";
@@ -91,6 +92,7 @@ function getLocalWeekdayAndTime(date: Date, timeZone: string): { weekday: number
 export async function createBooking(actor: Actor | null, input: unknown) {
   if (!actor) throw new AppError("UNAUTHORIZED");
   if (actor.role !== "customer") throw new AppError("FORBIDDEN");
+  await enforceRateLimit("createBooking", actor.id);
 
   const result = createBookingSchema.safeParse(input);
   if (!result.success) {
@@ -205,6 +207,7 @@ function isValidTransition(
 export async function updateBookingStatus(actor: Actor | null, bookingId: string, input: unknown) {
   if (!actor) throw new AppError("UNAUTHORIZED");
   const parsed = updateBookingStatusSchema.parse(input);
+  await enforceRateLimit("bookingStatus", actor.id);
   let by: TransitionActor = "customer";
   let autoCancelledIds: string[] = [];
 

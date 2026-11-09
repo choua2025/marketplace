@@ -33,7 +33,7 @@ let mail: RecordingEmailProvider;
 
 beforeEach(async () => {
   await resetTestDatabase();
-  resetRateLimitsForTesting();
+  await resetRateLimitsForTesting();
   mail = new RecordingEmailProvider();
   setEmailProviderForTesting(mail);
   setMessageEmailDelayForTesting(0);

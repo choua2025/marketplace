@@ -7,7 +7,7 @@ import { db } from "@/server/db/client";
 import { env } from "@/server/lib/env";
 import { getSmsProvider } from "@/server/sms";
 import { sendAuthEmail, type Locale } from "@/server/email/auth-emails";
-import { checkRateLimit } from "@/server/lib/rate-limit";
+import { checkRateLimit, RATE_LIMITS } from "@/server/lib/rate-limit";
 import { normalizePhone, PHONE_PATTERN } from "@/lib/validations/profile";
 import { isGooglePhotoUrl } from "@/lib/google-photo";
 
@@ -175,6 +175,18 @@ export const auth = betterAuth({
     : undefined,
   rateLimit: {
     enabled: true,
+    // The same Postgres-backed counters as the rest of the app, so limits
+    // hold across processes and restarts (Better Auth's default is memory).
+    customStorage: {
+      consume: async (key, rule) => {
+        const { allowed, retryAfterMs } = await checkRateLimit(
+          `auth:${key}`,
+          rule.max,
+          rule.window * 1000,
+        );
+        return { allowed, retryAfter: allowed ? null : Math.ceil(retryAfterMs / 1000) };
+      },
+    },
     customRules: {
       // SPEC.md section 11: 10 OTP requests/hour/IP (Better Auth's
       // built-in limiter is IP-keyed). The 3/10min/phone-number rule is
@@ -189,7 +201,8 @@ export const auth = betterAuth({
   plugins: [
     phoneNumber({
       sendOTP: async ({ phoneNumber, code }) => {
-        const { allowed, retryAfterMs } = checkRateLimit(`otp:${phoneNumber}`, 3, 10 * 60 * 1000);
+        const { max, windowMs } = RATE_LIMITS.otpPerPhone;
+        const { allowed, retryAfterMs } = await checkRateLimit(`otp:${phoneNumber}`, max, windowMs);
         if (!allowed) {
           throw APIError.fromStatus("TOO_MANY_REQUESTS", {
             message: `Too many OTP requests for this phone number. Try again in ${Math.ceil(retryAfterMs / 1000)}s.`,

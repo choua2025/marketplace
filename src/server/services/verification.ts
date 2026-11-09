@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { db } from "@/server/db/client";
 import { AppError } from "@/server/lib/errors";
+import { enforceRateLimit } from "@/server/lib/rate-limit";
 import type { Actor } from "@/server/lib/actor";
 import { assertKeyBelongsToActor } from "@/server/services/upload";
 
@@ -42,6 +43,7 @@ export async function submitVerification(
   input: unknown,
 ): Promise<VerificationDto> {
   const provider = assertProvider(actor);
+  await enforceRateLimit("verification", provider.id);
   const parsed = submitVerificationSchema.parse(input);
   for (const key of parsed.documentKeys) {
     assertKeyBelongsToActor(key, "verification", provider);

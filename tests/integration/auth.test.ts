@@ -13,7 +13,7 @@ let mail: RecordingEmailProvider;
 
 beforeEach(async () => {
   await resetTestDatabase();
-  resetRateLimitsForTesting();
+  await resetRateLimitsForTesting();
   sms = new RecordingSmsProvider();
   setSmsProviderForTesting(sms);
   mail = new RecordingEmailProvider();

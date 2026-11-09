@@ -1,12 +1,11 @@
 import { db } from "@/server/db/client";
 import type { Prisma } from "@/server/db/generated/prisma/client";
 import { AppError } from "@/server/lib/errors";
-import { checkRateLimit } from "@/server/lib/rate-limit";
+import { enforceRateLimit } from "@/server/lib/rate-limit";
 import type { Actor } from "@/server/lib/actor";
 import { notifyNewMessage } from "@/server/services/notifications";
 import { sendMessageSchema, startConversationSchema } from "@/lib/validations/chat";
 
-const MESSAGES_PER_MINUTE = 20;
 
 export const messageSelect = {
   id: true,
@@ -75,6 +74,7 @@ export async function startConversation(actor: Actor | null, input: unknown) {
 
   const { providerId } = startConversationSchema.parse(input);
   if (providerId === actor.id) throw new AppError("FORBIDDEN");
+  await enforceRateLimit("startConversation", actor.id);
 
   return db.conversation.upsert({
     where: { customerId_providerId: { customerId: actor.id, providerId } },
@@ -97,8 +97,7 @@ export async function sendMessage(actor: Actor | null, conversationId: string, i
   if (!actor) throw new AppError("UNAUTHORIZED");
   await assertConversationParty(actor, conversationId);
 
-  const { allowed } = checkRateLimit(`chat-send:${actor.id}`, MESSAGES_PER_MINUTE, 60 * 1000);
-  if (!allowed) throw new AppError("RATE_LIMITED");
+  await enforceRateLimit("chatMessage", actor.id);
 
   const parsed = sendMessageSchema.parse(input);
   if (parsed.imageKey) assertImageKeyBelongsToConversation(parsed.imageKey, conversationId);

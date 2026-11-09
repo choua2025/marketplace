@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { db } from "@/server/db/client";
 import { AppError } from "@/server/lib/errors";
+import { enforceRateLimit } from "@/server/lib/rate-limit";
 import type { Actor } from "@/server/lib/actor";
 import {
   createExpiringViewUrl,
@@ -36,6 +37,8 @@ export async function createUploadUrl(
   input: unknown,
 ): Promise<{ uploadUrl: string; fields: Record<string, string>; key: string }> {
   if (!actor) throw new AppError("UNAUTHORIZED");
+  // Every upload starts here, so this one limit covers them all.
+  await enforceRateLimit("upload", actor.id);
 
   const parsed = createUploadUrlSchema.parse(input);
   if (parsed.purpose === "portfolio" && actor.role !== "provider") {
