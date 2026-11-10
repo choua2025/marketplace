@@ -15,7 +15,10 @@
     "removePhoto": "Remove this photo",
     "notSpecified": "Not provided",
     "showPassword": "Show password",
-    "hidePassword": "Hide password"
+    "hidePassword": "Hide password",
+    "reviewsCount": "{count, plural, one {# review} other {# reviews}}",
+    "viewDetails": "View details",
+    "jobsDone": "{count, plural, one {Hired # time} other {Hired # times}}"
   },
   "header": {
     "accountMenuLabel": "Account menu",
@@ -276,7 +279,26 @@
     "nearArea": "around {area}",
     "nearYou": "near your location",
     "emptyStateDefaultArea": "No providers found around {area}. If you are somewhere else, tap \"Use my location\" to find pros near you.",
-    "locationFailed": "Couldn't get your location. Allow location access in your browser and try again."
+    "locationFailed": "Couldn't get your location. Allow location access in your browser and try again.",
+    "breadcrumbHome": "Home",
+    "headingAll": "All pros",
+    "searchPlaceholder": "Search by name, service or area",
+    "activeFilters": "Active filters:",
+    "clearAll": "Clear all",
+    "removeFilter": "Remove filter: {label}",
+    "verifiedOnly": "Verified pros only",
+    "verifiedChip": "Verified",
+    "priceTitle": "Price",
+    "priceUpTo": "Up to {max}",
+    "priceBetween": "{min} – {max}",
+    "priceFrom": "{min} and above",
+    "locationTitle": "Location",
+    "locationMine": "Near my location",
+    "sortMostBooked": "Most booked",
+    "sortNewest": "Newest pros",
+    "ratingChip": "{rating}+ stars",
+    "showFilters": "Filters",
+    "hideFilters": "Hide filters"
   },
   "errors": {
     "PROVIDER_UNAVAILABLE": "This provider is not available right now.",

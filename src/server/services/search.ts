@@ -17,8 +17,14 @@ export type SearchResultDto = {
   experienceYears: number | null;
   ratingAvg: string;
   ratingCount: number;
+  completedJobs: number;
   distanceKm: number;
 };
+
+/** `text` as a case-insensitive "contains" pattern, with LIKE's wildcards taken literally. */
+function containsPattern(text: string): string {
+  return `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}
 
 /**
  * Public search (SPEC.md section 7.6). `actor` isn't used for permission
@@ -50,6 +56,27 @@ export async function searchProviders(
       ? Prisma.sql`AND pp.base_price <= ${params.maxPrice}`
       : Prisma.sql``;
 
+  const minPriceFilter =
+    params.minPrice !== undefined
+      ? Prisma.sql`AND pp.base_price >= ${params.minPrice}`
+      : Prisma.sql``;
+
+  const verifiedFilter = params.verifiedOnly ? Prisma.sql`AND pp.is_verified` : Prisma.sql``;
+
+  const pattern = params.q ? containsPattern(params.q) : null;
+  const textFilter = pattern
+    ? Prisma.sql`AND (
+        pp.display_name ILIKE ${pattern}
+        OR pp.bio ILIKE ${pattern}
+        OR pp.area_label ILIKE ${pattern}
+        OR EXISTS (
+          SELECT 1 FROM provider_categories pc
+          JOIN categories c ON c.id = pc.category_id
+          WHERE pc.provider_id = pp.id AND (c.name_th ILIKE ${pattern} OR c.name_en ILIKE ${pattern})
+        )
+      )`
+    : Prisma.sql``;
+
   const orderBy =
     params.sort === "distance"
       ? Prisma.sql`"distanceKm" ASC`
@@ -57,8 +84,12 @@ export async function searchProviders(
         ? Prisma.sql`"ratingAvg" DESC, "ratingCount" DESC`
         : params.sort === "price"
           ? Prisma.sql`"basePrice" ASC`
-          : // recommended: verified first, then weighted rating, then distance
-            Prisma.sql`"isVerified" DESC, (("ratingAvg"::numeric * "ratingCount" + 4.0 * 3) / ("ratingCount" + 3)) DESC, "distanceKm" ASC`;
+          : params.sort === "mostBooked"
+            ? Prisma.sql`"completedJobs" DESC, "ratingCount" DESC, "distanceKm" ASC`
+            : params.sort === "newest"
+              ? Prisma.sql`"createdAt" DESC`
+              : // recommended: verified first, then weighted rating, then distance
+                Prisma.sql`"isVerified" DESC, (("ratingAvg"::numeric * "ratingCount" + 4.0 * 3) / ("ratingCount" + 3)) DESC, "distanceKm" ASC`;
 
   // base_price/rating_avg are NUMERIC columns -- Prisma's $queryRaw returns
   // those as Decimal objects even for raw SQL, not the plain strings the
@@ -84,6 +115,8 @@ export async function searchProviders(
         pp.experience_since_year AS "experienceSinceYear",
         pp.rating_avg AS "ratingAvg",
         pp.rating_count AS "ratingCount",
+        pp.completed_jobs AS "completedJobs",
+        pp.created_at AS "createdAt",
         pp.service_radius_km AS "serviceRadiusKm",
         (6371 * acos(
           LEAST(1.0, GREATEST(-1.0,
@@ -97,12 +130,15 @@ export async function searchProviders(
         AND pp.latitude IS NOT NULL
         ${categoryFilter}
         ${minRatingFilter}
+        ${minPriceFilter}
         ${maxPriceFilter}
+        ${verifiedFilter}
+        ${textFilter}
     )
     SELECT
       id, "displayName", "avatarKey", "basePrice", "priceUnit", "areaLabel",
       latitude, longitude, "isVerified", "experienceSinceYear", "ratingAvg", "ratingCount",
-      "distanceKm"
+      "completedJobs", "distanceKm"
     FROM candidates
     WHERE "distanceKm" <= ${params.maxKm} AND "distanceKm" <= "serviceRadiusKm"
     ORDER BY ${orderBy}
@@ -148,6 +184,7 @@ export async function listFeaturedProviders(
       experienceSinceYear: true,
       ratingAvg: true,
       ratingCount: true,
+      completedJobs: true,
       profile: { select: { avatarKey: true } },
     },
   });
@@ -165,6 +202,7 @@ export async function listFeaturedProviders(
     experienceYears: experienceYears(row.experienceSinceYear),
     ratingAvg: row.ratingAvg.toFixed(2),
     ratingCount: row.ratingCount,
+    completedJobs: row.completedJobs,
     distanceKm: 0,
   }));
 }

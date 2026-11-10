@@ -15,7 +15,10 @@
     "removePhoto": "ลบรูปนี้",
     "notSpecified": "ไม่ระบุ",
     "showPassword": "แสดงรหัสผ่าน",
-    "hidePassword": "ซ่อนรหัสผ่าน"
+    "hidePassword": "ซ่อนรหัสผ่าน",
+    "reviewsCount": "{count} รีวิว",
+    "viewDetails": "ดูรายละเอียด",
+    "jobsDone": "จ้างแล้ว {count} ครั้ง"
   },
   "header": {
     "accountMenuLabel": "เมนูบัญชีผู้ใช้",
@@ -276,7 +279,26 @@
     "nearArea": "รอบ{area}",
     "nearYou": "ใกล้ตำแหน่งของคุณ",
     "emptyStateDefaultArea": "ไม่พบช่างรอบ{area} ถ้าคุณอยู่ที่อื่น กด \"ใช้ตำแหน่งของฉัน\" เพื่อหาช่างใกล้คุณ",
-    "locationFailed": "หาตำแหน่งของคุณไม่ได้ กรุณาอนุญาตการเข้าถึงตำแหน่งในเบราว์เซอร์ แล้วลองอีกครั้ง"
+    "locationFailed": "หาตำแหน่งของคุณไม่ได้ กรุณาอนุญาตการเข้าถึงตำแหน่งในเบราว์เซอร์ แล้วลองอีกครั้ง",
+    "breadcrumbHome": "หน้าแรก",
+    "headingAll": "ช่างทั้งหมด",
+    "searchPlaceholder": "ค้นหาชื่อช่าง บริการ หรือพื้นที่",
+    "activeFilters": "ตัวกรองที่ใช้:",
+    "clearAll": "ล้างทั้งหมด",
+    "removeFilter": "ลบตัวกรอง: {label}",
+    "verifiedOnly": "เฉพาะช่างที่ยืนยันตัวตนแล้ว",
+    "verifiedChip": "ยืนยันตัวตนแล้ว",
+    "priceTitle": "ราคา",
+    "priceUpTo": "ไม่เกิน {max}",
+    "priceBetween": "{min} – {max}",
+    "priceFrom": "{min} ขึ้นไป",
+    "locationTitle": "พื้นที่",
+    "locationMine": "ใกล้ตำแหน่งของฉัน",
+    "sortMostBooked": "จองมากที่สุด",
+    "sortNewest": "ช่างใหม่ล่าสุด",
+    "ratingChip": "{rating}+ ดาว",
+    "showFilters": "ตัวกรอง",
+    "hideFilters": "ซ่อนตัวกรอง"
   },
   "errors": {
     "PROVIDER_UNAVAILABLE": "ช่างนี้ไม่พร้อมให้บริการในขณะนี้",

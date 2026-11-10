@@ -15,7 +15,10 @@
     "removePhoto": "ລຶບຮູບນີ້",
     "notSpecified": "ບໍ່ລະບຸ",
     "showPassword": "ສະແດງລະຫັດຜ່ານ",
-    "hidePassword": "ເຊື່ອງລະຫັດຜ່ານ"
+    "hidePassword": "ເຊື່ອງລະຫັດຜ່ານ",
+    "reviewsCount": "{count} ຣີວິວ",
+    "viewDetails": "ເບິ່ງລາຍລະອຽດ",
+    "jobsDone": "ຈ້າງແລ້ວ {count} ຄັ້ງ"
   },
   "header": {
     "accountMenuLabel": "ເມນູບັນຊີຜູ້ໃຊ້",
@@ -276,7 +279,26 @@
     "nearArea": "ອ້ອມ{area}",
     "nearYou": "ໃກ້ຕຳແໜ່ງຂອງທ່ານ",
     "emptyStateDefaultArea": "ບໍ່ພົບຊ່າງອ້ອມ{area} ຖ້າທ່ານຢູ່ບ່ອນອື່ນ ກົດ \"ໃຊ້ຕຳແໜ່ງຂອງຂ້ອຍ\" ເພື່ອຊອກຫາຊ່າງໃກ້ທ່ານ",
-    "locationFailed": "ຫາຕຳແໜ່ງຂອງທ່ານບໍ່ໄດ້ ກະລຸນາອະນຸຍາດການເຂົ້າເຖິງຕຳແໜ່ງໃນບຣາວເຊີ ແລ້ວລອງໃໝ່"
+    "locationFailed": "ຫາຕຳແໜ່ງຂອງທ່ານບໍ່ໄດ້ ກະລຸນາອະນຸຍາດການເຂົ້າເຖິງຕຳແໜ່ງໃນບຣາວເຊີ ແລ້ວລອງໃໝ່",
+    "breadcrumbHome": "ໜ້າຫຼັກ",
+    "headingAll": "ຊ່າງທັງໝົດ",
+    "searchPlaceholder": "ຄົ້ນຫາຊື່ຊ່າງ ບໍລິການ ຫຼື ພື້ນທີ່",
+    "activeFilters": "ຕົວກອງທີ່ໃຊ້:",
+    "clearAll": "ລ້າງທັງໝົດ",
+    "removeFilter": "ລຶບຕົວກອງ: {label}",
+    "verifiedOnly": "ສະເພາະຊ່າງທີ່ຢືນຢັນຕົວຕົນແລ້ວ",
+    "verifiedChip": "ຢືນຢັນຕົວຕົນແລ້ວ",
+    "priceTitle": "ລາຄາ",
+    "priceUpTo": "ບໍ່ເກີນ {max}",
+    "priceBetween": "{min} – {max}",
+    "priceFrom": "{min} ຂຶ້ນໄປ",
+    "locationTitle": "ພື້ນທີ່",
+    "locationMine": "ໃກ້ຕຳແໜ່ງຂອງຂ້ອຍ",
+    "sortMostBooked": "ຈອງຫຼາຍທີ່ສຸດ",
+    "sortNewest": "ຊ່າງໃໝ່ລ່າສຸດ",
+    "ratingChip": "{rating}+ ດາວ",
+    "showFilters": "ຕົວກອງ",
+    "hideFilters": "ເຊື່ອງຕົວກອງ"
   },
   "errors": {
     "PROVIDER_UNAVAILABLE": "ຊ່າງຄົນນີ້ບໍ່ພ້ອມໃຫ້ບໍລິການໃນຕອນນີ້",

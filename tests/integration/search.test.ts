@@ -15,6 +15,8 @@ interface ProviderFixtureOptions {
   ratingCount?: number;
   basePrice?: string;
   categorySlug?: string;
+  bio?: string;
+  completedJobs?: number;
 }
 
 async function createProviderFixture(id: string, options: ProviderFixtureOptions = {}) {
@@ -28,6 +30,8 @@ async function createProviderFixture(id: string, options: ProviderFixtureOptions
     ratingCount = 0,
     basePrice = "100.00",
     categorySlug,
+    bio,
+    completedJobs = 0,
   } = options;
 
   await testOwnerDb.user.create({ data: { id, name: id, email: `${id}@test.local` } });
@@ -44,6 +48,8 @@ async function createProviderFixture(id: string, options: ProviderFixtureOptions
       ratingAvg,
       ratingCount,
       basePrice,
+      bio,
+      completedJobs,
     },
   });
 
@@ -156,6 +162,70 @@ describe("searchProviders", () => {
     const results = await searchProviders(null, { ...BANGKOK, maxKm: 200, sort: "rating" });
 
     expect(results.map((r) => r.id)).toEqual(["prov-high", "prov-low"]);
+  });
+
+  it("matches text against name, bio and category names", async () => {
+    await createProviderFixture("somchai", { bio: "ซ่อมแอร์ ล้างแอร์" });
+    await createProviderFixture("prov-elec", { categorySlug: "electrician" });
+    await createProviderFixture("prov-other");
+
+    const ids = async (q: string) =>
+      (await searchProviders(null, { ...BANGKOK, maxKm: 200, q })).map((r) => r.id).sort();
+
+    expect(await ids("SomChai")).toEqual(["somchai"]);
+    expect(await ids("แอร์")).toEqual(["somchai"]);
+    expect(await ids("ไฟฟ้า")).toEqual(["prov-elec"]);
+    expect(await ids("electric")).toEqual(["prov-elec"]);
+    // Blank text doesn't filter at all.
+    expect(await ids("  ")).toHaveLength(3);
+  });
+
+  it("treats LIKE wildcards in the text literally", async () => {
+    await createProviderFixture("prov1");
+    const results = await searchProviders(null, { ...BANGKOK, maxKm: 200, q: "%" });
+    expect(results).toEqual([]);
+  });
+
+  it("filters by a price range and verified providers", async () => {
+    await createProviderFixture("prov-cheap", { basePrice: "300.00", isVerified: true });
+    await createProviderFixture("prov-mid", { basePrice: "800.00", isVerified: true });
+    await createProviderFixture("prov-mid-unverified", { basePrice: "900.00" });
+    await createProviderFixture("prov-expensive", { basePrice: "3000.00", isVerified: true });
+
+    const results = await searchProviders(null, {
+      ...BANGKOK,
+      maxKm: 200,
+      minPrice: 500,
+      maxPrice: 1000,
+      verifiedOnly: true,
+    });
+
+    expect(results.map((r) => r.id)).toEqual(["prov-mid"]);
+  });
+
+  it("sorts by completed jobs when sort=mostBooked", async () => {
+    await createProviderFixture("prov-few", { completedJobs: 2 });
+    await createProviderFixture("prov-many", { completedJobs: 40 });
+
+    const results = await searchProviders(null, { ...BANGKOK, maxKm: 200, sort: "mostBooked" });
+
+    expect(results.map((r) => [r.id, r.completedJobs])).toEqual([
+      ["prov-many", 40],
+      ["prov-few", 2],
+    ]);
+  });
+
+  it("sorts the newest providers first when sort=newest", async () => {
+    await createProviderFixture("prov-old");
+    await testOwnerDb.providerProfile.update({
+      where: { id: "prov-old" },
+      data: { createdAt: new Date("2025-01-01") },
+    });
+    await createProviderFixture("prov-new");
+
+    const results = await searchProviders(null, { ...BANGKOK, maxKm: 200, sort: "newest" });
+
+    expect(results.map((r) => r.id)).toEqual(["prov-new", "prov-old"]);
   });
 });
 
